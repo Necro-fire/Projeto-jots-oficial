@@ -1,0 +1,2 @@
+ALTER TABLE public.produtos DROP CONSTRAINT IF EXISTS produtos_referencia_filial_unique;
+ALTER TABLE public.produtos ADD CONSTRAINT produtos_referencia_classificacao_filial_unique UNIQUE (referencia, classificacao, filial_id);

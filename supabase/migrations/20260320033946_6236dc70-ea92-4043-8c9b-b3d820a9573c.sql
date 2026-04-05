@@ -1,0 +1,1 @@
+ALTER TABLE public.alertas_estoque ADD COLUMN filial_id text NOT NULL DEFAULT '1';

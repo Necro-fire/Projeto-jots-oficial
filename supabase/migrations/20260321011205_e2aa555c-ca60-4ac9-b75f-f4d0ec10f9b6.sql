@@ -1,0 +1,1 @@
+ALTER TABLE public.venda_items ADD COLUMN IF NOT EXISTS custo_unitario numeric NOT NULL DEFAULT 0;

@@ -1,0 +1,2 @@
+UPDATE permissions SET description = 'Adicionar ou remover alerta' WHERE module = 'estoque' AND action = 'edit';
+UPDATE permissions SET action = 'cancel', description = 'Cancelar vendas' WHERE module = 'vendas' AND action = 'create';

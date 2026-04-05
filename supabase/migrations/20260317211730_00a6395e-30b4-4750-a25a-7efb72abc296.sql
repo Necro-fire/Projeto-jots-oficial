@@ -1,0 +1,1 @@
+ALTER TABLE public.tipos_produto ADD COLUMN estoque_minimo_alerta integer NOT NULL DEFAULT 3;

@@ -1,0 +1,1 @@
+ALTER TABLE public.produtos ADD COLUMN IF NOT EXISTS tipo_venda text NOT NULL DEFAULT '';

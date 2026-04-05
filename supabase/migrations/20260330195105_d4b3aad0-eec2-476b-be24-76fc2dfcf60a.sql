@@ -1,0 +1,1 @@
+ALTER PUBLICATION supabase_realtime ADD TABLE public.venda_items, public.descontos_atacado, public.clientes, public.tipos_produto, public.funcionarios_auth, public.roles, public.role_permissions, public.permissions, public.user_roles, public.venda_item_cancelamentos;

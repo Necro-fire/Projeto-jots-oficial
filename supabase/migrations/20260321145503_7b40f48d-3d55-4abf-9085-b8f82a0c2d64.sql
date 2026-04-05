@@ -1,0 +1,1 @@
+ALTER TABLE public.produtos ADD COLUMN classificacao text NOT NULL DEFAULT '';

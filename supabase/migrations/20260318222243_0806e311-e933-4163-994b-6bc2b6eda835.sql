@@ -1,0 +1,1 @@
+ALTER TABLE public.produtos ADD COLUMN ncm text NOT NULL DEFAULT '';
