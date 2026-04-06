@@ -263,23 +263,11 @@ export default function Produtos() {
                       )}
                     </div>
 
-                  <div
-                    className={`aspect-[3/2] rounded-md bg-secondary flex items-center justify-center overflow-hidden ${canViewImages && product.image_url ? 'cursor-pointer' : ''}`}
-                    onClick={() => {
-                      if (canViewImages && product.image_url) {
-                        setZoomImage({ url: product.image_url, name: product.model || product.referencia });
-                      }
-                    }}
-                  >
+                  <div className="aspect-[3/2] rounded-md bg-secondary flex items-center justify-center overflow-hidden">
                     {product.image_url ? (
                       <img src={product.image_url} alt={product.model || product.referencia} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-muted-foreground/30 text-title font-bold">{product.model || product.referencia}</span>
-                    )}
-                    {canViewImages && product.image_url && (
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                        <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-70 transition-opacity" />
-                      </div>
                     )}
                   </div>
                   <div className="mt-3 flex justify-between items-start gap-2">
