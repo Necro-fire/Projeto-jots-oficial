@@ -1,20 +1,24 @@
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { FileText, Search, Banknote, CreditCard, QrCode, Ban, Receipt } from "lucide-react";
+import { FileText, Search, Banknote, CreditCard, QrCode, Ban, Receipt, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFilial } from "@/contexts/FilialContext";
 import { FilialSelector } from "@/components/FilialSelector";
 import { DateRangeFilter, useDateRangeFilter, filterByDateRange } from "@/components/DateRangeFilter";
 import { VendaDetailDialog } from "@/components/VendaDetailDialog";
+import { CupomFiscalDialog } from "@/components/CupomFiscalDialog";
 import { useVendas, type DbVenda } from "@/hooks/useSupabaseData";
 import { useNotasFiscais } from "@/hooks/useNotasFiscais";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parsePaymentDisplay, parseSplitPaymentDisplay, formatCurrency, type BoletoMetaInfo } from "@/lib/paymentUtils";
+import { buildCupomFromVendaId } from "@/lib/cupomFiscalUtils";
+import type { CupomFiscalData } from "@/components/CupomFiscal";
 
 function getPaymentIcon(method: string) {
   const key = method.toLowerCase();
