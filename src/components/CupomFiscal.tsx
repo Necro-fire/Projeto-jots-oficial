@@ -12,6 +12,7 @@ export interface CupomFiscalData {
     numero: number;
     dataHora: string;
     operador: string;
+    caixa?: string;
   };
   items: {
     codigo: string;
@@ -22,32 +23,116 @@ export interface CupomFiscalData {
   }[];
   subtotal: number;
   desconto: number;
+  acrescimo?: number;
   total: number;
   formasPagamento: string[];
+  formasPagamentoValores?: number[];
 }
 
-const SEPARATOR = "─".repeat(48);
-const DOUBLE_SEPARATOR = "═".repeat(48);
+const W = 48;
+const SEP = "─".repeat(W);
+const DOUBLE_SEP = "═".repeat(W);
 
-function padColumns(left: string, right: string, width = 48): string {
-  const maxLeft = width - right.length - 1;
-  const truncLeft = left.length > maxLeft ? left.substring(0, maxLeft) : left;
-  const spaces = width - truncLeft.length - right.length;
-  return truncLeft + " ".repeat(Math.max(spaces, 1)) + right;
-}
-
-function centerText(text: string, width = 48): string {
-  const pad = Math.max(0, Math.floor((width - text.length) / 2));
+function center(text: string): string {
+  const pad = Math.max(0, Math.floor((W - text.length) / 2));
   return " ".repeat(pad) + text;
 }
 
-function formatCurrency(value: number): string {
-  return `R$ ${value.toFixed(2)}`;
+function rightAlign(left: string, right: string): string {
+  const spaces = W - left.length - right.length;
+  return left + " ".repeat(Math.max(spaces, 1)) + right;
+}
+
+function fmtCurrency(value: number): string {
+  return `R$ ${value.toFixed(2).replace(".", ",")}`;
+}
+
+function fmtCurrencyPad(value: number, padTo = 10): string {
+  const s = fmtCurrency(value);
+  return s.length < padTo ? " ".repeat(padTo - s.length) + s : s;
 }
 
 const CupomFiscal = forwardRef<HTMLDivElement, { data: CupomFiscalData }>(
   ({ data }, ref) => {
-    const { empresa, venda, items, subtotal, desconto, total, formasPagamento } = data;
+    const { empresa, venda, items, subtotal, desconto, acrescimo, total, formasPagamento, formasPagamentoValores } = data;
+
+    // Split dataHora "dd/MM/yyyy HH:mm" into date and time
+    const [datePart, timePart] = venda.dataHora.includes(" ")
+      ? venda.dataHora.split(" ")
+      : [venda.dataHora, ""];
+
+    const lines: string[] = [];
+
+    // Header
+    lines.push(center(empresa.nome));
+    if (empresa.cnpj) lines.push(center(`CNPJ: ${empresa.cnpj}`));
+    if (empresa.inscricaoEstadual) lines.push(center(`IE: ${empresa.inscricaoEstadual}`));
+    if (empresa.endereco) lines.push(center(empresa.endereco));
+    lines.push("");
+    lines.push(DOUBLE_SEP);
+    lines.push(center("CUPOM FISCAL"));
+    lines.push(DOUBLE_SEP);
+    lines.push("");
+
+    // Sale info
+    lines.push(`DATA: ${datePart}    HORA: ${timePart}`);
+    lines.push(`VENDA Nº: ${venda.codigo || String(venda.numero).padStart(6, "0")}`);
+    lines.push(`OPERADOR: ${venda.operador || "—"}`);
+    if (venda.caixa) lines.push(`CAIXA: ${venda.caixa}`);
+    lines.push("");
+    lines.push(SEP);
+    lines.push("ITEM  CÓD   DESCRIÇÃO");
+    lines.push("QTD   VLR UN.           TOTAL ITEM");
+    lines.push(SEP);
+    lines.push("");
+
+    // Items
+    items.forEach((item, i) => {
+      const num = String(i + 1).padEnd(6);
+      const cod = String(item.codigo).padEnd(6);
+      lines.push(`${num}${cod}${item.descricao}`);
+
+      const qty = String(item.quantidade).padStart(2, "0").padEnd(6);
+      const unitStr = fmtCurrencyPad(item.valorUnitario);
+      const totalStr = fmtCurrencyPad(item.total);
+      lines.push(`      ${qty}${unitStr}        ${totalStr}`);
+      lines.push("");
+    });
+
+    lines.push(SEP);
+
+    // Totals
+    lines.push(rightAlign("SUBTOTAL:", fmtCurrency(subtotal)));
+    lines.push(rightAlign("DESCONTOS:", desconto > 0 ? fmtCurrency(desconto) : "R$ 0,00"));
+    if (acrescimo !== undefined && acrescimo > 0) {
+      lines.push(rightAlign("ACRÉSCIMOS:", fmtCurrency(acrescimo)));
+    } else {
+      lines.push(rightAlign("ACRÉSCIMOS:", "R$ 0,00"));
+    }
+    lines.push("");
+    lines.push(SEP);
+    lines.push("");
+    lines.push(rightAlign("TOTAL:", fmtCurrency(total)));
+    lines.push("");
+    lines.push(DOUBLE_SEP);
+    lines.push("");
+
+    // Payment
+    lines.push("FORMA DE PAGAMENTO:");
+    formasPagamento.forEach((f, i) => {
+      const val = formasPagamentoValores?.[i] ?? total;
+      const label = `- ${f}`;
+      const valStr = fmtCurrency(val);
+      const dots = ".".repeat(Math.max(1, W - label.length - 1 - valStr.length));
+      lines.push(`${label} ${dots} ${valStr}`);
+    });
+    lines.push("");
+    lines.push(DOUBLE_SEP);
+    lines.push("");
+    lines.push(center("OBRIGADO PELA PREFERÊNCIA!"));
+    lines.push(center("VOLTE SEMPRE!"));
+    lines.push("");
+    lines.push(DOUBLE_SEP);
 
     return (
       <div
@@ -63,44 +148,8 @@ const CupomFiscal = forwardRef<HTMLDivElement, { data: CupomFiscalData }>(
           background: "#fff",
         }}
       >
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: "4px" }}>
-          <div style={{ fontWeight: "bold", fontSize: "14px" }}>{empresa.nome}</div>
-          {empresa.cnpj && <div>CNPJ: {empresa.cnpj}</div>}
-          {empresa.inscricaoEstadual && <div>IE: {empresa.inscricaoEstadual}</div>}
-          {empresa.endereco && (
-            <div style={{ fontSize: "11px", wordBreak: "break-word" }}>{empresa.endereco}</div>
-          )}
-        </div>
-
         <pre style={{ margin: 0, fontFamily: "inherit", fontSize: "inherit", whiteSpace: "pre-wrap" }}>
-{DOUBLE_SEPARATOR}
-{centerText("CUPOM FISCAL")}
-{SEPARATOR}
-{padColumns("Data:", venda.dataHora)}
-{padColumns("Venda:", venda.codigo || `#${venda.numero}`)}
-{padColumns("Operador:", venda.operador || "—")}
-{SEPARATOR}
-{padColumns("ITEM", "TOTAL")}
-{SEPARATOR}
-{items.map((item, i) => {
-  const line1 = `${String(i + 1).padStart(2, "0")}  ${item.codigo}`;
-  const line2 = `    ${item.descricao}`;
-  const line3 = padColumns(
-    `    ${item.quantidade}x ${formatCurrency(item.valorUnitario)}`,
-    formatCurrency(item.total)
-  );
-  return `${line1}\n${line2}\n${line3}`;
-}).join("\n")}
-{SEPARATOR}
-{padColumns("Subtotal:", formatCurrency(subtotal))}
-{desconto > 0 ? padColumns("Desconto:", `- ${formatCurrency(desconto)}`) + "\n" : ""}{padColumns("TOTAL:", formatCurrency(total))}
-{SEPARATOR}
-{centerText("FORMA(S) DE PAGAMENTO")}
-{formasPagamento.map(f => centerText(f)).join("\n")}
-{DOUBLE_SEPARATOR}
-{centerText("Obrigado pela preferência!")}
-{centerText("Volte sempre!")}
+{lines.join("\n")}
         </pre>
       </div>
     );
