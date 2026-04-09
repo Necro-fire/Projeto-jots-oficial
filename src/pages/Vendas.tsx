@@ -366,6 +366,12 @@ export default function Vendas() {
         open={!!selectedVenda}
         onOpenChange={(open) => { if (!open) setSelectedVenda(null); }}
       />
+
+      <CupomFiscalDialog
+        open={showCupom}
+        onOpenChange={setShowCupom}
+        data={cupomData}
+      />
     </div>
   );
 }
