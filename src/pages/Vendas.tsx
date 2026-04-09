@@ -87,6 +87,19 @@ export default function Vendas() {
   const [boletoFilter, setBoletoFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState<string | null>(null);
   const [selectedVenda, setSelectedVenda] = useState<DbVenda | null>(null);
+  const [cupomData, setCupomData] = useState<CupomFiscalData | null>(null);
+  const [showCupom, setShowCupom] = useState(false);
+
+  const handlePrintCupom = async (vendaId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const data = await buildCupomFromVendaId(vendaId);
+      setCupomData(data);
+      setShowCupom(true);
+    } catch (err) {
+      toast.error("Erro ao gerar cupom fiscal");
+    }
+  };
 
   const filtered = useMemo(() => {
     let result = filterByDateRange(sales, range);
