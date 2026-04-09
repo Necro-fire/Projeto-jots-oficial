@@ -818,6 +818,13 @@ export default function PDV() {
         imageUrl={zoomImage?.url || ""}
         productName={zoomImage?.name || ""}
       />
+
+      {/* Cupom Fiscal Dialog */}
+      <CupomFiscalDialog
+        open={showCupom}
+        onOpenChange={setShowCupom}
+        data={cupomData}
+      />
     </div>
   );
 }
