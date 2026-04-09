@@ -285,7 +285,18 @@ export default function Vendas() {
                       <p className="text-caption text-muted-foreground">{sale.client_name || "Cliente avulso"}</p>
                     </div>
                   </div>
-                  <div className="text-right flex items-center gap-3">
+                  <div className="text-right flex items-center gap-2">
+                    {!isCancelled && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Imprimir Cupom Fiscal"
+                        onClick={(e) => handlePrintCupom(sale.id, e)}
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Badge variant="outline" className="text-caption">{getFilialName(sale.filial_id)}</Badge>
                     <div className="flex flex-col items-end gap-0.5">
                       {(() => {
