@@ -21,6 +21,9 @@ import { CreditCardInstallmentDialog } from "@/components/pdv/CreditCardInstallm
 import { BoletoConfigDialog } from "@/components/pdv/BoletoConfigDialog";
 import { DiscountRuleDialog } from "@/components/pdv/DiscountRuleDialog";
 import { ProductImageDialog } from "@/components/pdv/ProductImageDialog";
+import { CupomFiscalDialog } from "@/components/CupomFiscalDialog";
+import { buildCupomFromVendaId } from "@/lib/cupomFiscalUtils";
+import type { CupomFiscalData } from "@/components/CupomFiscal";
 import {
   AlertDialog,
   AlertDialogAction,
