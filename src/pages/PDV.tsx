@@ -21,6 +21,9 @@ import { CreditCardInstallmentDialog } from "@/components/pdv/CreditCardInstallm
 import { BoletoConfigDialog } from "@/components/pdv/BoletoConfigDialog";
 import { DiscountRuleDialog } from "@/components/pdv/DiscountRuleDialog";
 import { ProductImageDialog } from "@/components/pdv/ProductImageDialog";
+import { CupomFiscalDialog } from "@/components/CupomFiscalDialog";
+import { buildCupomFromVendaId } from "@/lib/cupomFiscalUtils";
+import type { CupomFiscalData } from "@/components/CupomFiscal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +63,8 @@ export default function PDV() {
   const [splitBoletoEntryId, setSplitBoletoEntryId] = useState<string | null>(null);
   const [splitBoletoAmount, setSplitBoletoAmount] = useState(0);
   const [zoomImage, setZoomImage] = useState<{ url: string; name: string } | null>(null);
+  const [cupomData, setCupomData] = useState<CupomFiscalData | null>(null);
+  const [showCupom, setShowCupom] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { selectedFilial, setSelectedFilial } = useFilial();
   const { user, profile, hasPermission } = useAuth();
@@ -336,6 +341,16 @@ export default function PDV() {
       const result = await createVenda(items, selectedClient, client?.store_name || "", finalMethod, saleOrigin, filialId, saleDiscount, user?.id, profile?.nome || user?.email || "", splits);
 
       toast.success(`Venda finalizada! ${result.sale_code || '#' + result.number} — Total: R$ ${saleTotal.toFixed(2)}`);
+      
+      // Build cupom and show dialog
+      try {
+        const cupom = await buildCupomFromVendaId(result.id);
+        setCupomData(cupom);
+        setShowCupom(true);
+      } catch (e) {
+        console.error("Erro ao gerar cupom:", e);
+      }
+
       setCart([]);
       setSelectedClient("");
       setPaymentMethod("");
@@ -802,6 +817,13 @@ export default function PDV() {
         onOpenChange={(o) => { if (!o) setZoomImage(null); }}
         imageUrl={zoomImage?.url || ""}
         productName={zoomImage?.name || ""}
+      />
+
+      {/* Cupom Fiscal Dialog */}
+      <CupomFiscalDialog
+        open={showCupom}
+        onOpenChange={setShowCupom}
+        data={cupomData}
       />
     </div>
   );

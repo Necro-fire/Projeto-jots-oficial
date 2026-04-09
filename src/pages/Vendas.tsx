@@ -1,20 +1,24 @@
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { FileText, Search, Banknote, CreditCard, QrCode, Ban, Receipt } from "lucide-react";
+import { FileText, Search, Banknote, CreditCard, QrCode, Ban, Receipt, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFilial } from "@/contexts/FilialContext";
 import { FilialSelector } from "@/components/FilialSelector";
 import { DateRangeFilter, useDateRangeFilter, filterByDateRange } from "@/components/DateRangeFilter";
 import { VendaDetailDialog } from "@/components/VendaDetailDialog";
+import { CupomFiscalDialog } from "@/components/CupomFiscalDialog";
 import { useVendas, type DbVenda } from "@/hooks/useSupabaseData";
 import { useNotasFiscais } from "@/hooks/useNotasFiscais";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parsePaymentDisplay, parseSplitPaymentDisplay, formatCurrency, type BoletoMetaInfo } from "@/lib/paymentUtils";
+import { buildCupomFromVendaId } from "@/lib/cupomFiscalUtils";
+import type { CupomFiscalData } from "@/components/CupomFiscal";
 
 function getPaymentIcon(method: string) {
   const key = method.toLowerCase();
@@ -83,6 +87,19 @@ export default function Vendas() {
   const [boletoFilter, setBoletoFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState<string | null>(null);
   const [selectedVenda, setSelectedVenda] = useState<DbVenda | null>(null);
+  const [cupomData, setCupomData] = useState<CupomFiscalData | null>(null);
+  const [showCupom, setShowCupom] = useState(false);
+
+  const handlePrintCupom = async (vendaId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const data = await buildCupomFromVendaId(vendaId);
+      setCupomData(data);
+      setShowCupom(true);
+    } catch (err) {
+      toast.error("Erro ao gerar cupom fiscal");
+    }
+  };
 
   const filtered = useMemo(() => {
     let result = filterByDateRange(sales, range);
@@ -268,7 +285,18 @@ export default function Vendas() {
                       <p className="text-caption text-muted-foreground">{sale.client_name || "Cliente avulso"}</p>
                     </div>
                   </div>
-                  <div className="text-right flex items-center gap-3">
+                  <div className="text-right flex items-center gap-2">
+                    {!isCancelled && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Imprimir Cupom Fiscal"
+                        onClick={(e) => handlePrintCupom(sale.id, e)}
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Badge variant="outline" className="text-caption">{getFilialName(sale.filial_id)}</Badge>
                     <div className="flex flex-col items-end gap-0.5">
                       {(() => {
@@ -337,6 +365,12 @@ export default function Vendas() {
         venda={selectedVenda}
         open={!!selectedVenda}
         onOpenChange={(open) => { if (!open) setSelectedVenda(null); }}
+      />
+
+      <CupomFiscalDialog
+        open={showCupom}
+        onOpenChange={setShowCupom}
+        data={cupomData}
       />
     </div>
   );
