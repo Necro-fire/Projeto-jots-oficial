@@ -37,6 +37,7 @@ export function CupomFiscalDialog({ open, onOpenChange, data }: CupomFiscalDialo
             @page { margin: 0; size: 80mm auto; }
             body { width: 80mm; }
           }
+          @page { margin: 0; }
         </style>
       </head>
       <body>${cupomRef.current.innerHTML}</body>
