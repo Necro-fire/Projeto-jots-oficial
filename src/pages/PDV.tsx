@@ -63,6 +63,8 @@ export default function PDV() {
   const [splitBoletoEntryId, setSplitBoletoEntryId] = useState<string | null>(null);
   const [splitBoletoAmount, setSplitBoletoAmount] = useState(0);
   const [zoomImage, setZoomImage] = useState<{ url: string; name: string } | null>(null);
+  const [cupomData, setCupomData] = useState<CupomFiscalData | null>(null);
+  const [showCupom, setShowCupom] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { selectedFilial, setSelectedFilial } = useFilial();
   const { user, profile, hasPermission } = useAuth();
