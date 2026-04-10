@@ -821,7 +821,6 @@ export default function PDV() {
         productCode={zoomImage?.code}
         classificacao={zoomImage?.classificacao}
       />
-      />
 
       {/* Cupom Fiscal Dialog */}
       <CupomFiscalDialog
