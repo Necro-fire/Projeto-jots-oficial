@@ -16,6 +16,7 @@ import type { DbProduct } from "@/hooks/useSupabaseData";
 import { generateProductCodes, findProductByHash, upsertEstoque } from "@/hooks/useSupabaseData";
 
 import { generateProductHash } from "@/lib/productHash";
+import { shouldHaveFooter, renderImageWithFooter } from "@/lib/productImageFooter";
 import {
   CLASSIFICACOES, CATEGORIAS_IDADE, GENEROS, ESTILOS, TODAS_CORES, CORES_SOLIDAS,
   MATERIAIS_ARO, MATERIAIS_HASTE, TIPOS_LENTE, CORES_LENTE_CLIPON,
