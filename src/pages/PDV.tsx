@@ -486,7 +486,7 @@ export default function PDV() {
                       <h3 className="text-ui font-medium truncate">{product.model || product.referencia}</h3>
                       <div className="flex justify-between items-center mt-1">
                         <Badge variant="secondary" className="text-caption tabular-nums">{product.displayStock} un.</Badge>
-                        <span className="text-ui font-medium tabular-nums text-primary">R$ {Number(product.retail_price).toFixed(0)}</span>
+                        <span className="text-ui font-medium tabular-nums text-primary">R$ {Number(product.retail_price).toFixed(2)}</span>
                       </div>
                     </button>
                   </div>
@@ -565,11 +565,11 @@ export default function PDV() {
                     <div className="flex flex-col items-end w-24">
                       {g.ruleLabel ? (
                         <>
-                          <span className="text-caption tabular-nums text-muted-foreground line-through">R$ {g.totalOriginal.toFixed(0)}</span>
-                          <span className="text-ui font-medium tabular-nums text-success">R$ {g.totalDiscounted.toFixed(0)}</span>
+                          <span className="text-caption tabular-nums text-muted-foreground line-through">R$ {g.totalOriginal.toFixed(2)}</span>
+                          <span className="text-ui font-medium tabular-nums text-success">R$ {g.totalDiscounted.toFixed(2)}</span>
                         </>
                       ) : (
-                        <span className="text-ui font-medium tabular-nums text-primary">R$ {g.totalDiscounted.toFixed(0)}</span>
+                        <span className="text-ui font-medium tabular-nums text-primary">R$ {g.totalDiscounted.toFixed(2)}</span>
                       )}
                     </div>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeFromCart(g.cartIds[g.cartIds.length - 1])}><Trash2 className="h-3 w-3" /></Button>
