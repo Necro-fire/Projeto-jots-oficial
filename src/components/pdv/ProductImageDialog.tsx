@@ -9,12 +9,12 @@ interface ProductImageDialogProps {
   onOpenChange: (open: boolean) => void;
   imageUrl: string;
   productName: string;
-  /** Product category (e.g. "Receituário") — used to decide footer */
   category?: string;
-  /** Product code (referencia) */
   productCode?: string;
-  /** Classification (C1-C10) */
   classificacao?: string;
+  haste?: number;
+  lente?: number;
+  ponte?: number;
 }
 
 export function ProductImageDialog({
@@ -25,6 +25,9 @@ export function ProductImageDialog({
   category,
   productCode,
   classificacao,
+  haste,
+  lente,
+  ponte,
 }: ProductImageDialogProps) {
   const [zoom, setZoom] = useState(1);
 
@@ -67,14 +70,20 @@ export function ProductImageDialog({
               alt={productName}
               draggable={false}
             />
-            {showFooter && (
-              <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-3 py-1.5 flex justify-between items-center">
-                <span className="text-white text-xs font-semibold">COD: {productCode}</span>
-                {classificacao && (
-                  <span className="text-white text-xs font-semibold">{classificacao}</span>
-                )}
-              </div>
-            )}
+            {showFooter && (() => {
+              const sizeParts: string[] = [];
+              if (haste) sizeParts.push(`H:${haste}`);
+              if (lente) sizeParts.push(`L:${lente}`);
+              if (ponte) sizeParts.push(`P:${ponte}`);
+              const sizesText = sizeParts.join(" ");
+              const rightText = [classificacao, sizesText].filter(Boolean).join(" | ");
+              return (
+                <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-3 py-1.5 flex justify-between items-center">
+                  <span className="text-white text-xs font-semibold">COD: {productCode}</span>
+                  {rightText && <span className="text-white text-xs font-semibold">{rightText}</span>}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </DialogContent>
