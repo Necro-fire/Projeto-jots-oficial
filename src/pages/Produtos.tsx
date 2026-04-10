@@ -152,16 +152,7 @@ export default function Produtos() {
       const files: File[] = [];
       await Promise.all(withImages.map(async (p) => {
         try {
-          const cat = p.category as string;
-          const needsFooter = shouldHaveFooter(cat) && p.referencia;
-          let blob: Blob;
-          let ext: string;
-          if (needsFooter) {
-            blob = await renderImageWithFooter(p.image_url, p.referencia, (p as any).classificacao || "");
-            ext = "jpg";
-          } else {
-            ({ blob, ext } = await toShareableBlob(p.image_url));
-          }
+          const { blob, ext } = await toShareableBlob(p.image_url);
           const name = `produto-${p.id.slice(0, 8)}-${sanitizeName(p.model || p.referencia)}.${ext}`;
           const mimeType = ext === "png" ? "image/png" : "image/jpeg";
           files.push(new File([blob], name, { type: mimeType }));
