@@ -28,7 +28,7 @@ export default function NotasFiscais() {
   const canManage = canAddNF || canCancelNF;
   const { data: notas, updateStatus, deleteNF } = useNotasFiscais();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  
   const [tipoFilter, setTipoFilter] = useState("all");
   const [selectedNF, setSelectedNF] = useState<DbNotaFiscal | null>(null);
 
@@ -40,12 +40,11 @@ export default function NotasFiscais() {
         String(nf.numero).includes(search) ||
         nf.chave_acesso.includes(search) ||
         nf.fornecedor_nome?.toLowerCase().includes(search.toLowerCase());
-      const matchStatus = statusFilter === "all" || nf.status === statusFilter;
       const matchTipo = tipoFilter === "all" || nf.tipo_operacao === tipoFilter;
-      return matchFilial && matchSearch && matchStatus && matchTipo;
+      return matchFilial && matchSearch && matchTipo;
     });
     return result.sort((a, b) => new Date(b.data_emissao).getTime() - new Date(a.data_emissao).getTime());
-  }, [notas, selectedFilial, search, statusFilter, tipoFilter]);
+  }, [notas, selectedFilial, search, tipoFilter]);
 
   const getFilialName = (filialId: string) => filiais.find(f => f.id === filialId)?.name || `Filial ${filialId}`;
 
