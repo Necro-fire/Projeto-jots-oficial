@@ -282,19 +282,11 @@ export default function Produtos() {
                       )}
                     </div>
 
-                  <div className="aspect-[3/2] rounded-md bg-secondary flex items-center justify-center overflow-hidden relative">
+                  <div className="aspect-[3/2] rounded-md bg-secondary flex items-center justify-center overflow-hidden">
                     {product.image_url ? (
                       <img src={product.image_url} alt={product.model || product.referencia} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-muted-foreground/30 text-title font-bold">{product.model || product.referencia}</span>
-                    )}
-                    {product.image_url && shouldHaveFooter(product.category) && product.referencia && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-2 py-1 flex justify-between items-center">
-                        <span className="text-white text-[10px] font-semibold">COD: {product.referencia}</span>
-                        {(product as any).classificacao && (
-                          <span className="text-white text-[10px] font-semibold">{(product as any).classificacao}</span>
-                        )}
-                      </div>
                     )}
                   </div>
                   <div className="mt-3 flex justify-between items-start gap-2">
