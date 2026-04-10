@@ -26,8 +26,6 @@ import Cargos from "./pages/Cargos";
 import TrafegoFiliais from "./pages/TrafegoFiliais";
 import ProdutosConsignados from "./pages/ProdutosConsignados";
 import Fornecedores from "./pages/Fornecedores";
-
-
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -45,28 +43,26 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { path: "/", element: <ProtectedRoute module="Dashboard" action="view"><Dashboard /></ProtectedRoute> },
-      { path: "/pdv", element: <ProtectedRoute module="PDV" action="view"><PDV /></ProtectedRoute> },
-      { path: "/produtos", element: <ProtectedRoute module="Produtos" action="view"><Produtos /></ProtectedRoute> },
-      { path: "/clientes", element: <ProtectedRoute module="Clientes" action="view"><Clientes /></ProtectedRoute> },
-      { path: "/funcionarios", element: <ProtectedRoute module="Funcionários" action="view"><Funcionarios /></ProtectedRoute> },
-      { path: "/vendas", element: <ProtectedRoute module="Vendas" action="view"><Vendas /></ProtectedRoute> },
-      { path: "/estoque", element: <ProtectedRoute module="Estoque" action="view"><Estoque /></ProtectedRoute> },
-      { path: "/caixa", element: <ProtectedRoute module="Caixa" action="view"><Caixa /></ProtectedRoute> },
-      { path: "/permissoes", element: <ProtectedRoute module="Administração" action="manage_permissions"><Permissoes /></ProtectedRoute> },
-      { path: "/relatorios", element: <ProtectedRoute module="Relatórios" action="view"><Relatorios /></ProtectedRoute> },
-      { path: "/notas-fiscais", element: <ProtectedRoute module="Fiscal" action="view_nf"><NotasFiscais /></ProtectedRoute> },
-      { path: "/adicionar-nf", element: <ProtectedRoute module="Fiscal" action="add_nf"><EmitirNF /></ProtectedRoute> },
-      { path: "/emitir-nf", element: <ProtectedRoute module="Fiscal" action="manage"><EmitirNF /></ProtectedRoute> },
-      { path: "/configuracao-fiscal", element: <ProtectedRoute module="Fiscal" action="manage"><ConfiguracaoFiscal /></ProtectedRoute> },
-      { path: "/empresas", element: <ProtectedRoute module="Fiscal" action="manage"><Empresas /></ProtectedRoute> },
-      { path: "/fornecedores", element: <ProtectedRoute module="Estoque" action="view"><Fornecedores /></ProtectedRoute> },
-      { path: "/certificado-digital", element: <ProtectedRoute module="Fiscal" action="manage"><CertificadoDigital /></ProtectedRoute> },
-      { path: "/cargos", element: <ProtectedRoute module="Administração" action="manage_roles"><Cargos /></ProtectedRoute> },
-      { path: "/trafego-filiais", element: <ProtectedRoute module="Estoque" action="view"><TrafegoFiliais /></ProtectedRoute> },
-      { path: "/produtos-consignados", element: <ProtectedRoute module="Vendas" action="view"><ProdutosConsignados /></ProtectedRoute> },
-      
-      
+      { path: "/", element: <ProtectedRoute module="dashboard" action="view"><Dashboard /></ProtectedRoute> },
+      { path: "/pdv", element: <ProtectedRoute module="pdv" action="view"><PDV /></ProtectedRoute> },
+      { path: "/produtos", element: <ProtectedRoute module="produtos" action="view"><Produtos /></ProtectedRoute> },
+      { path: "/clientes", element: <ProtectedRoute module="clientes" action="view"><Clientes /></ProtectedRoute> },
+      { path: "/funcionarios", element: <ProtectedRoute module="funcionarios" action="view"><Funcionarios /></ProtectedRoute> },
+      { path: "/vendas", element: <ProtectedRoute module="vendas" action="view"><Vendas /></ProtectedRoute> },
+      { path: "/estoque", element: <ProtectedRoute module="estoque" action="view"><Estoque /></ProtectedRoute> },
+      { path: "/caixa", element: <ProtectedRoute module="caixa" action="view"><Caixa /></ProtectedRoute> },
+      { path: "/permissoes", element: <ProtectedRoute module="admin" action="manage_permissions"><Permissoes /></ProtectedRoute> },
+      { path: "/relatorios", element: <ProtectedRoute module="relatorios" action="view"><Relatorios /></ProtectedRoute> },
+      { path: "/notas-fiscais", element: <ProtectedRoute module="fiscal" action="view_nf"><NotasFiscais /></ProtectedRoute> },
+      { path: "/adicionar-nf", element: <ProtectedRoute module="fiscal" action="add_nf"><EmitirNF /></ProtectedRoute> },
+      { path: "/emitir-nf", element: <ProtectedRoute module="fiscal" action="manage"><EmitirNF /></ProtectedRoute> },
+      { path: "/configuracao-fiscal", element: <ProtectedRoute module="fiscal" action="manage"><ConfiguracaoFiscal /></ProtectedRoute> },
+      { path: "/empresas", element: <ProtectedRoute module="fiscal" action="manage"><Empresas /></ProtectedRoute> },
+      { path: "/fornecedores", element: <ProtectedRoute module="fornecedores" action="view"><Fornecedores /></ProtectedRoute> },
+      { path: "/certificado-digital", element: <ProtectedRoute module="fiscal" action="manage"><CertificadoDigital /></ProtectedRoute> },
+      { path: "/cargos", element: <ProtectedRoute module="admin" action="manage_roles"><Cargos /></ProtectedRoute> },
+      { path: "/trafego-filiais", element: <ProtectedRoute module="trafego_filiais" action="view"><TrafegoFiliais /></ProtectedRoute> },
+      { path: "/produtos-consignados", element: <ProtectedRoute module="produtos_consignados" action="view"><ProdutosConsignados /></ProtectedRoute> },
       { path: "*", element: <NotFound /> },
     ],
   },
