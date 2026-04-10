@@ -30,7 +30,7 @@ export default function Produtos() {
   const canEdit = hasPermission('Produtos', 'edit');
   const canDelete = hasPermission('Produtos', 'delete');
   const canViewImages = hasPermission('Produtos', 'view_images');
-  const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; code?: string; classificacao?: string } | null>(null);
+  const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; code?: string; classificacao?: string; haste?: number; lente?: number; ponte?: number } | null>(null);
 
   const { data: products } = useProducts();
 
@@ -248,7 +248,7 @@ export default function Produtos() {
                 <div key={product.id} className="rounded-lg shadow-card bg-card p-3 group hover:shadow-md transition-shadow relative">
                     <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {canViewImages && product.image_url && (
-                        <Button variant="secondary" size="icon" className="h-7 w-7" title="Visualizar" onClick={() => setZoomImage({ url: product.image_url, name: product.model || product.referencia, category: product.category, code: product.referencia, classificacao: (product as any).classificacao })}>
+                        <Button variant="secondary" size="icon" className="h-7 w-7" title="Visualizar" onClick={() => setZoomImage({ url: product.image_url, name: product.model || product.referencia, category: product.category, code: product.referencia, classificacao: (product as any).classificacao, haste: product.temple_size, lente: product.lens_size, ponte: product.bridge_size })}>
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -372,6 +372,9 @@ export default function Produtos() {
             category={zoomImage.category}
             productCode={zoomImage.code}
             classificacao={zoomImage.classificacao}
+            haste={zoomImage.haste}
+            lente={zoomImage.lente}
+            ponte={zoomImage.ponte}
           />
         )}
         
