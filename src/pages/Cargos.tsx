@@ -135,7 +135,9 @@ export default function Cargos() {
     dashboard: 'Dashboard', produtos: 'Produtos', clientes: 'Clientes',
     vendas: 'Vendas', estoque: 'Estoque', caixa: 'Caixa',
     funcionarios: 'Funcionários', relatorios: 'Relatórios', fiscal: 'Fiscal',
-    malas: 'Malas', pdv: 'PDV', admin: 'Administração',
+    pdv: 'PDV', admin: 'Administração', fornecedores: 'Fornecedores',
+    trafego_filiais: 'Tráfego de Filiais', produtos_consignados: 'Produtos Consignados',
+    boleto: 'Boleto',
   };
 
   return (
