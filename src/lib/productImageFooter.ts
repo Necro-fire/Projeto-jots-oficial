@@ -17,6 +17,7 @@ export async function renderImageWithFooter(
   imageUrl: string,
   code: string,
   classificacao: string,
+  medidas?: { haste?: number; lente?: number; ponte?: number },
 ): Promise<Blob> {
   const img = await loadImage(imageUrl);
   const canvas = document.createElement("canvas");
@@ -47,10 +48,20 @@ export async function renderImageWithFooter(
   ctx.textAlign = "left";
   ctx.fillText(`COD: ${code}`, pad, textY);
 
-  // Classification on the right
-  if (classificacao) {
+  // Build right-side text: classificação + medidas (Haste, Lente, Ponte - alphabetical)
+  const rightParts: string[] = [];
+  if (medidas) {
+    if (medidas.haste) rightParts.push(`H:${medidas.haste}`);
+    if (medidas.lente) rightParts.push(`L:${medidas.lente}`);
+    if (medidas.ponte) rightParts.push(`P:${medidas.ponte}`);
+  }
+  const sizesText = rightParts.length > 0 ? rightParts.join(" ") : "";
+  const classText = classificacao || "";
+  const rightText = [classText, sizesText].filter(Boolean).join(" | ");
+
+  if (rightText) {
     ctx.textAlign = "right";
-    ctx.fillText(classificacao, img.naturalWidth - pad, textY);
+    ctx.fillText(rightText, img.naturalWidth - pad, textY);
   }
 
   return new Promise((resolve, reject) => {
