@@ -134,16 +134,7 @@ export default function Produtos() {
   const handleExportImage = useCallback(async (product: DbProduct) => {
     if (!product.image_url) { toast.error("Produto sem imagem"); return; }
     try {
-      const cat = product.category as string;
-      const needsFooter = shouldHaveFooter(cat) && product.referencia;
-      let blob: Blob;
-      let ext: string;
-      if (needsFooter) {
-        blob = await renderImageWithFooter(product.image_url, product.referencia, (product as any).classificacao || "");
-        ext = "jpg";
-      } else {
-        ({ blob, ext } = await toShareableBlob(product.image_url));
-      }
+      const { blob, ext } = await toShareableBlob(product.image_url);
       const name = `produto-${product.id.slice(0, 8)}-${sanitizeName(product.model || product.referencia)}.${ext}`;
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
       const file = new File([blob], name, { type: mimeType });
