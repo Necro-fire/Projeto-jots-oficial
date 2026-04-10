@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { Plus, Package, Pencil, Trash2, ShoppingCart, Printer, Share2, ImageDown, ZoomIn, Eye } from "lucide-react";
-import { shouldHaveFooter, renderImageWithFooter } from "@/lib/productImageFooter";
+// productImageFooter is used at save-time in ProductFormDialog
 import JsBarcode from "jsbarcode";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -134,16 +134,7 @@ export default function Produtos() {
   const handleExportImage = useCallback(async (product: DbProduct) => {
     if (!product.image_url) { toast.error("Produto sem imagem"); return; }
     try {
-      const cat = product.category as string;
-      const needsFooter = shouldHaveFooter(cat) && product.referencia;
-      let blob: Blob;
-      let ext: string;
-      if (needsFooter) {
-        blob = await renderImageWithFooter(product.image_url, product.referencia, (product as any).classificacao || "");
-        ext = "jpg";
-      } else {
-        ({ blob, ext } = await toShareableBlob(product.image_url));
-      }
+      const { blob, ext } = await toShareableBlob(product.image_url);
       const name = `produto-${product.id.slice(0, 8)}-${sanitizeName(product.model || product.referencia)}.${ext}`;
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
       const file = new File([blob], name, { type: mimeType });
@@ -161,16 +152,7 @@ export default function Produtos() {
       const files: File[] = [];
       await Promise.all(withImages.map(async (p) => {
         try {
-          const cat = p.category as string;
-          const needsFooter = shouldHaveFooter(cat) && p.referencia;
-          let blob: Blob;
-          let ext: string;
-          if (needsFooter) {
-            blob = await renderImageWithFooter(p.image_url, p.referencia, (p as any).classificacao || "");
-            ext = "jpg";
-          } else {
-            ({ blob, ext } = await toShareableBlob(p.image_url));
-          }
+          const { blob, ext } = await toShareableBlob(p.image_url);
           const name = `produto-${p.id.slice(0, 8)}-${sanitizeName(p.model || p.referencia)}.${ext}`;
           const mimeType = ext === "png" ? "image/png" : "image/jpeg";
           files.push(new File([blob], name, { type: mimeType }));
@@ -282,19 +264,11 @@ export default function Produtos() {
                       )}
                     </div>
 
-                  <div className="aspect-[3/2] rounded-md bg-secondary flex items-center justify-center overflow-hidden relative">
+                  <div className="aspect-[3/2] rounded-md bg-secondary flex items-center justify-center overflow-hidden">
                     {product.image_url ? (
                       <img src={product.image_url} alt={product.model || product.referencia} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-muted-foreground/30 text-title font-bold">{product.model || product.referencia}</span>
-                    )}
-                    {product.image_url && shouldHaveFooter(product.category) && product.referencia && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-2 py-1 flex justify-between items-center">
-                        <span className="text-white text-[10px] font-semibold">COD: {product.referencia}</span>
-                        {(product as any).classificacao && (
-                          <span className="text-white text-[10px] font-semibold">{(product as any).classificacao}</span>
-                        )}
-                      </div>
                     )}
                   </div>
                   <div className="mt-3 flex justify-between items-start gap-2">

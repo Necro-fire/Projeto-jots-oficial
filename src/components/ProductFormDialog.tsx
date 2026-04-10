@@ -16,6 +16,7 @@ import type { DbProduct } from "@/hooks/useSupabaseData";
 import { generateProductCodes, findProductByHash, upsertEstoque } from "@/hooks/useSupabaseData";
 
 import { generateProductHash } from "@/lib/productHash";
+import { shouldHaveFooter, renderImageWithFooter } from "@/lib/productImageFooter";
 import {
   CLASSIFICACOES, CATEGORIAS_IDADE, GENEROS, ESTILOS, TODAS_CORES, CORES_SOLIDAS,
   MATERIAIS_ARO, MATERIAIS_HASTE, TIPOS_LENTE, CORES_LENTE_CLIPON,
@@ -268,10 +269,24 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
     reader.readAsDataURL(file);
   };
 
-  const uploadImage = async (file: File): Promise<string> => {
-    const ext = file.name.split(".").pop();
+  const uploadImage = async (file: File, footerCode?: string, footerClass?: string): Promise<string> => {
+    let uploadFile: File | Blob = file;
+    let ext = file.name.split(".").pop() || "jpg";
+
+    // Bake footer into image for applicable categories
+    if (footerCode && shouldHaveFooter(classificacaoProduto)) {
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const blob = await renderImageWithFooter(objectUrl, footerCode, footerClass || "");
+        uploadFile = blob;
+        ext = "jpg";
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+
     const path = `${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from("product-images").upload(path, file);
+    const { error } = await supabase.storage.from("product-images").upload(path, uploadFile);
     if (error) throw error;
     const { data } = supabase.storage.from("product-images").getPublicUrl(path);
     return data.publicUrl;
@@ -314,7 +329,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
     try {
       let imageUrl = isEditing ? (product?.image_url || "") : "";
       if (imageFile) {
-        imageUrl = await uploadImage(imageFile);
+        imageUrl = await uploadImage(imageFile, effectiveReferencia, effectiveClassificacao);
       }
 
       const subcatComputed = buildSubcategoria();
