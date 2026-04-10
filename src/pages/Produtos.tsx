@@ -134,7 +134,16 @@ export default function Produtos() {
   const handleExportImage = useCallback(async (product: DbProduct) => {
     if (!product.image_url) { toast.error("Produto sem imagem"); return; }
     try {
-      const { blob, ext } = await toShareableBlob(product.image_url);
+      const cat = product.category as string;
+      const needsFooter = shouldHaveFooter(cat) && product.referencia;
+      let blob: Blob;
+      let ext: string;
+      if (needsFooter) {
+        blob = await renderImageWithFooter(product.image_url, product.referencia, (product as any).classificacao || "");
+        ext = "jpg";
+      } else {
+        ({ blob, ext } = await toShareableBlob(product.image_url));
+      }
       const name = `produto-${product.id.slice(0, 8)}-${sanitizeName(product.model || product.referencia)}.${ext}`;
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
       const file = new File([blob], name, { type: mimeType });
@@ -152,7 +161,16 @@ export default function Produtos() {
       const files: File[] = [];
       await Promise.all(withImages.map(async (p) => {
         try {
-          const { blob, ext } = await toShareableBlob(p.image_url);
+          const cat = p.category as string;
+          const needsFooter = shouldHaveFooter(cat) && p.referencia;
+          let blob: Blob;
+          let ext: string;
+          if (needsFooter) {
+            blob = await renderImageWithFooter(p.image_url, p.referencia, (p as any).classificacao || "");
+            ext = "jpg";
+          } else {
+            ({ blob, ext } = await toShareableBlob(p.image_url));
+          }
           const name = `produto-${p.id.slice(0, 8)}-${sanitizeName(p.model || p.referencia)}.${ext}`;
           const mimeType = ext === "png" ? "image/png" : "image/jpeg";
           files.push(new File([blob], name, { type: mimeType }));
