@@ -368,7 +368,7 @@ export default function Funcionarios() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Filial</Label>
-                <Select value={filialId} onValueChange={setFilialId}>
+                <Select value={filialId} onValueChange={setFilialId} disabled={selectedFilial === '1'}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {filiais.map(f => (

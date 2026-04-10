@@ -300,7 +300,7 @@ export function ClientFormDialog({ open, onOpenChange, editingClient }: ClientFo
 
           <div>
             <Label>Filial *</Label>
-            <Select value={form.filial_id} onValueChange={(v) => set("filial_id", v)}>
+            <Select value={form.filial_id} onValueChange={(v) => set("filial_id", v)} disabled={selectedFilial === '1'}>
               <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="1">Filial 1</SelectItem>

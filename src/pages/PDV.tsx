@@ -410,7 +410,7 @@ export default function PDV() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-48px)]">
-      <FilialSelector onBeforeChange={(newFilial) => {
+      <FilialSelector hideAll onBeforeChange={(newFilial) => {
         if (cart.length > 0) {
           setPendingFilial(newFilial);
           return false;

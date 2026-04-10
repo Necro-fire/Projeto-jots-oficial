@@ -163,7 +163,7 @@ export default function EmitirNF() {
 
   return (
     <div>
-      <FilialSelector />
+      <FilialSelector hideAll />
       <div className="p-4 space-y-4 max-w-3xl">
         <div>
           <h1 className="text-title font-semibold tracking-tighter">Adicionar NF-e</h1>
