@@ -67,12 +67,6 @@ export default function NotasFiscais() {
     }
   };
 
-  const summaryItems = [
-    { key: "all", label: "Total", count: notas.filter(nf => selectedFilial === "all" || nf.filial_id === selectedFilial).length },
-    { key: "autorizada", label: "Autorizadas", count: notas.filter(nf => nf.status === "autorizada" && (selectedFilial === "all" || nf.filial_id === selectedFilial)).length },
-    { key: "pendente", label: "Pendentes", count: notas.filter(nf => nf.status === "pendente" && (selectedFilial === "all" || nf.filial_id === selectedFilial)).length },
-    { key: "cancelada", label: "Canceladas", count: notas.filter(nf => nf.status === "cancelada" && (selectedFilial === "all" || nf.filial_id === selectedFilial)).length },
-  ];
 
   return (
     <div>
@@ -108,21 +102,9 @@ export default function NotasFiscais() {
           </Select>
         </div>
 
-        {/* Summary */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {summaryItems.map(s => (
-            <Card key={s.key} className="border-border/50">
-              <CardContent className="p-3">
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-                <p className="text-lg font-semibold tabular-nums">{s.count}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
 
         <div className="space-y-1">
           {filtered.map(nf => {
-            const st = statusMap[nf.status] || statusMap.pendente;
             const isEntrada = nf.tipo_operacao === "entrada";
             return (
               <div
@@ -149,7 +131,6 @@ export default function NotasFiscais() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge className={st.className || undefined} variant={st.variant}>{st.label}</Badge>
                   <span className="text-ui font-medium tabular-nums text-primary">R$ {Number(nf.valor_total).toFixed(2)}</span>
                 </div>
               </div>
