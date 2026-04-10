@@ -77,7 +77,7 @@ export default function NotasFiscais() {
 
   return (
     <div>
-      <FilialSelector />
+      <FilialSelector hideAll />
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -97,17 +97,6 @@ export default function NotasFiscais() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Buscar por cliente, número, chave ou fornecedor..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-36 h-9">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="autorizada">Autorizada</SelectItem>
-              <SelectItem value="pendente">Pendente</SelectItem>
-              <SelectItem value="cancelada">Cancelada</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={tipoFilter} onValueChange={setTipoFilter}>
             <SelectTrigger className="w-36 h-9">
               <SelectValue placeholder="Tipo" />
