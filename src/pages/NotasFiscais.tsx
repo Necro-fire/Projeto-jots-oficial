@@ -4,7 +4,7 @@ import { FileText, Download, X, Search, Filter, Eye, FilePlus, ArrowUpDown, Exte
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FilialSelector } from "@/components/FilialSelector";
 import { useFilial } from "@/contexts/FilialContext";
@@ -13,11 +13,6 @@ import { useNotasFiscais, type DbNotaFiscal } from "@/hooks/useNotasFiscais";
 import { NFDetailDialog } from "@/components/NFDetailDialog";
 import { toast } from "sonner";
 
-const statusMap: Record<string, { label: string; variant: "default" | "destructive" | "secondary"; className: string }> = {
-  autorizada: { label: "Autorizada", variant: "default", className: "bg-success text-success-foreground" },
-  cancelada: { label: "Cancelada", variant: "destructive", className: "" },
-  pendente: { label: "Pendente", variant: "secondary", className: "bg-warning text-warning-foreground" },
-};
 
 export default function NotasFiscais() {
   const navigate = useNavigate();
