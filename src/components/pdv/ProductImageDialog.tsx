@@ -1,13 +1,20 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { shouldHaveFooter } from "@/lib/productImageFooter";
 
 interface ProductImageDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   imageUrl: string;
   productName: string;
+  /** Product category (e.g. "Receituário") — used to decide footer */
+  category?: string;
+  /** Product code (referencia) */
+  productCode?: string;
+  /** Classification (C1-C10) */
+  classificacao?: string;
 }
 
 export function ProductImageDialog({
@@ -15,12 +22,17 @@ export function ProductImageDialog({
   onOpenChange,
   imageUrl,
   productName,
+  category,
+  productCode,
+  classificacao,
 }: ProductImageDialogProps) {
   const [zoom, setZoom] = useState(1);
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 0.5, 4));
   const handleZoomOut = () => setZoom((z) => Math.max(z - 0.5, 0.5));
   const handleReset = () => setZoom(1);
+
+  const showFooter = !!(category && shouldHaveFooter(category) && productCode);
 
   return (
     <Dialog
@@ -48,14 +60,22 @@ export function ProductImageDialog({
             </Button>
           </div>
         </div>
-        <div className="overflow-auto max-h-[70vh] flex items-center justify-center bg-secondary rounded-md">
-          <img
-            src={imageUrl}
-            alt={productName}
-            className="transition-transform duration-200"
-            style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
-            draggable={false}
-          />
+        <div className="overflow-auto max-h-[70vh] flex items-center justify-center bg-secondary rounded-md relative">
+          <div className="relative inline-block" style={{ transform: `scale(${zoom})`, transformOrigin: "center center", transition: "transform 0.2s" }}>
+            <img
+              src={imageUrl}
+              alt={productName}
+              draggable={false}
+            />
+            {showFooter && (
+              <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-3 py-1.5 flex justify-between items-center">
+                <span className="text-white text-xs font-semibold">COD: {productCode}</span>
+                {classificacao && (
+                  <span className="text-white text-xs font-semibold">{classificacao}</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
