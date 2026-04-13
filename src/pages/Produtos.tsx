@@ -371,6 +371,9 @@ export default function Produtos() {
             productName={zoomImage.name}
             category={zoomImage.category}
             classificacao={zoomImage.classificacao}
+            haste={zoomImage.haste}
+            lente={zoomImage.lente}
+            ponte={zoomImage.ponte}
           />
         )}
         
