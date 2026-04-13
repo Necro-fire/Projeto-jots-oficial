@@ -329,7 +329,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
     try {
       let imageUrl = isEditing ? (product?.image_url || "") : "";
       if (imageFile) {
-        imageUrl = await uploadImage(imageFile, effectiveReferencia, effectiveClassificacao, name || effectiveReferencia, { haste: templeSize, lente: lensSize, ponte: bridgeSize });
+        imageUrl = await uploadImage(imageFile, effectiveReferencia, effectiveClassificacao, name || effectiveReferencia, { haste: Number(templeSize) || 0, lente: Number(lensSize) || 0, ponte: Number(bridgeSize) || 0 });
       }
 
       const subcatComputed = buildSubcategoria();
