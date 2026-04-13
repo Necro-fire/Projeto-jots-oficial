@@ -269,7 +269,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
     reader.readAsDataURL(file);
   };
 
-  const uploadImage = async (file: File, footerCode?: string, footerClass?: string, productName?: string): Promise<string> => {
+  const uploadImage = async (file: File, footerCode?: string, footerClass?: string, productName?: string, measures?: { haste?: number; lente?: number; ponte?: number }): Promise<string> => {
     let uploadFile: File | Blob = file;
     let ext = file.name.split(".").pop() || "jpg";
 
@@ -277,7 +277,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
     if (footerCode && shouldHaveFooter(classificacaoProduto)) {
       const objectUrl = URL.createObjectURL(file);
       try {
-        const blob = await renderImageWithFooter(objectUrl, footerCode, footerClass || "", productName);
+        const blob = await renderImageWithFooter(objectUrl, footerCode, footerClass || "", productName, measures);
         uploadFile = blob;
         ext = "jpg";
       } finally {
