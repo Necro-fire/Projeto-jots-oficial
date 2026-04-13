@@ -10,11 +10,7 @@ interface ProductImageDialogProps {
   imageUrl: string;
   productName: string;
   category?: string;
-  productCode?: string;
   classificacao?: string;
-  haste?: number;
-  lente?: number;
-  ponte?: number;
 }
 
 export function ProductImageDialog({
@@ -23,11 +19,7 @@ export function ProductImageDialog({
   imageUrl,
   productName,
   category,
-  productCode,
   classificacao,
-  haste,
-  lente,
-  ponte,
 }: ProductImageDialogProps) {
   const [zoom, setZoom] = useState(1);
 
@@ -35,13 +27,8 @@ export function ProductImageDialog({
   const handleZoomOut = () => setZoom((z) => Math.max(z - 0.5, 0.5));
   const handleReset = () => setZoom(1);
 
-  const showFooter = !!(category && shouldHaveFooter(category) && productCode);
+  const showFooter = !!(category && shouldHaveFooter(category));
 
-  const measureParts: string[] = [];
-  if (haste) measureParts.push(`Haste: ${haste}`);
-  if (lente) measureParts.push(`Lente: ${lente}`);
-  if (ponte) measureParts.push(`Ponte: ${ponte}`);
-  const codeLine = [productCode ? `COD: ${productCode}` : "", classificacao, measureParts.length ? measureParts.join("  ") : ""].filter(Boolean).join("   |   ");
 
   return (
     <Dialog
@@ -79,7 +66,7 @@ export function ProductImageDialog({
             {showFooter && (
               <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-4 py-2 flex flex-col gap-0.5">
                 <span className="text-white text-xs font-semibold leading-tight">{productName}</span>
-                {codeLine && <span className="text-white/90 text-[11px] font-medium leading-tight">{codeLine}</span>}
+                {classificacao && <span className="text-white/90 text-[11px] font-medium leading-tight">{classificacao}</span>}
               </div>
             )}
           </div>

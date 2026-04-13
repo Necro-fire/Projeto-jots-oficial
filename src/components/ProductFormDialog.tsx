@@ -269,15 +269,15 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
     reader.readAsDataURL(file);
   };
 
-  const uploadImage = async (file: File, footerCode?: string, footerClass?: string, productName?: string, measures?: { haste?: number; lente?: number; ponte?: number }): Promise<string> => {
+  const uploadImage = async (file: File, productName?: string, footerClass?: string): Promise<string> => {
     let uploadFile: File | Blob = file;
     let ext = file.name.split(".").pop() || "jpg";
 
     // Bake footer into image for applicable categories
-    if (footerCode && shouldHaveFooter(classificacaoProduto)) {
+    if (shouldHaveFooter(classificacaoProduto)) {
       const objectUrl = URL.createObjectURL(file);
       try {
-        const blob = await renderImageWithFooter(objectUrl, footerCode, footerClass || "", productName, measures);
+        const blob = await renderImageWithFooter(objectUrl, productName, footerClass || "");
         uploadFile = blob;
         ext = "jpg";
       } finally {
@@ -329,7 +329,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
     try {
       let imageUrl = isEditing ? (product?.image_url || "") : "";
       if (imageFile) {
-        imageUrl = await uploadImage(imageFile, effectiveReferencia, effectiveClassificacao, name || effectiveReferencia, { haste: Number(templeSize) || 0, lente: Number(lensSize) || 0, ponte: Number(bridgeSize) || 0 });
+        imageUrl = await uploadImage(imageFile, name || effectiveReferencia, effectiveClassificacao);
       }
 
       const subcatComputed = buildSubcategoria();
