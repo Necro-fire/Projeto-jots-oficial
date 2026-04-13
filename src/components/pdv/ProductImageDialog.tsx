@@ -29,11 +29,6 @@ export function ProductImageDialog({
 
   const showFooter = !!(category && shouldHaveFooter(category));
 
-  const measureParts: string[] = [];
-  if (haste) measureParts.push(`Haste: ${haste}`);
-  if (lente) measureParts.push(`Lente: ${lente}`);
-  if (ponte) measureParts.push(`Ponte: ${ponte}`);
-  const codeLine = [productCode ? `COD: ${productCode}` : "", classificacao, measureParts.length ? measureParts.join("  ") : ""].filter(Boolean).join("   |   ");
 
   return (
     <Dialog
