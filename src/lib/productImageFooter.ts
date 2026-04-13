@@ -1,6 +1,9 @@
 /**
  * Utility to add code + classification footer to product images.
  * Applies only to Receituário, Solar, Clip-on categories.
+ * Footer layout (2 lines):
+ *   Line 1: Nome completo da peça
+ *   Line 2: COD: XXXXX  |  C3
  */
 
 const FOOTER_CATEGORIES = ["Receituário", "Solar", "Clip-on"];
@@ -17,7 +20,7 @@ export async function renderImageWithFooter(
   imageUrl: string,
   code: string,
   classificacao: string,
-  medidas?: { haste?: number; lente?: number; ponte?: number },
+  productName?: string,
 ): Promise<Blob> {
   const img = await loadImage(imageUrl);
   const canvas = document.createElement("canvas");
@@ -28,40 +31,42 @@ export async function renderImageWithFooter(
   // Draw original image
   ctx.drawImage(img, 0, 0);
 
-  // Footer dimensions
-  const footerH = Math.max(36, Math.round(img.naturalHeight * 0.06));
+  // Footer dimensions — proportional, optimized for 9:16 reference
+  const footerH = Math.max(56, Math.round(img.naturalHeight * 0.09));
   const y = img.naturalHeight - footerH;
 
   // Semi-transparent dark overlay
-  ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.60)";
   ctx.fillRect(0, y, img.naturalWidth, footerH);
 
-  // Text
-  const fontSize = Math.max(14, Math.round(footerH * 0.5));
-  ctx.font = `600 ${fontSize}px Arial, sans-serif`;
-  ctx.fillStyle = "#ffffff";
-  ctx.textBaseline = "middle";
-  const textY = y + footerH / 2;
-  const pad = Math.round(img.naturalWidth * 0.03);
+  const pad = Math.round(img.naturalWidth * 0.04);
 
-  // Code on the left
-  ctx.textAlign = "left";
-  ctx.fillText(`COD: ${code}`, pad, textY);
-
-  // Build right-side text: classificação + medidas (Haste, Lente, Ponte - alphabetical)
-  const rightParts: string[] = [];
-  if (medidas) {
-    if (medidas.haste) rightParts.push(`H:${medidas.haste}`);
-    if (medidas.lente) rightParts.push(`L:${medidas.lente}`);
-    if (medidas.ponte) rightParts.push(`P:${medidas.ponte}`);
+  // Line 1 — Product name (top of footer)
+  const nameText = productName || "";
+  if (nameText) {
+    const nameFontSize = Math.max(12, Math.round(footerH * 0.35));
+    ctx.font = `600 ${nameFontSize}px Arial, sans-serif`;
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    const line1Y = y + footerH * 0.33;
+    ctx.fillText(nameText, pad, line1Y);
   }
-  const sizesText = rightParts.length > 0 ? rightParts.join(" ") : "";
-  const classText = classificacao || "";
-  const rightText = [classText, sizesText].filter(Boolean).join(" | ");
 
-  if (rightText) {
-    ctx.textAlign = "right";
-    ctx.fillText(rightText, img.naturalWidth - pad, textY);
+  // Line 2 — COD + Classification (bottom of footer)
+  const line2Parts: string[] = [];
+  if (code) line2Parts.push(`COD: ${code}`);
+  if (classificacao) line2Parts.push(classificacao);
+  const line2Text = line2Parts.join("   |   ");
+
+  if (line2Text) {
+    const codeFontSize = Math.max(11, Math.round(footerH * 0.28));
+    ctx.font = `500 ${codeFontSize}px Arial, sans-serif`;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.90)";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    const line2Y = nameText ? y + footerH * 0.70 : y + footerH * 0.5;
+    ctx.fillText(line2Text, pad, line2Y);
   }
 
   return new Promise((resolve, reject) => {

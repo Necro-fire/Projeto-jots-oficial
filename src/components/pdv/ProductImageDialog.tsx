@@ -12,9 +12,6 @@ interface ProductImageDialogProps {
   category?: string;
   productCode?: string;
   classificacao?: string;
-  haste?: number;
-  lente?: number;
-  ponte?: number;
 }
 
 export function ProductImageDialog({
@@ -25,9 +22,6 @@ export function ProductImageDialog({
   category,
   productCode,
   classificacao,
-  haste,
-  lente,
-  ponte,
 }: ProductImageDialogProps) {
   const [zoom, setZoom] = useState(1);
 
@@ -36,6 +30,8 @@ export function ProductImageDialog({
   const handleReset = () => setZoom(1);
 
   const showFooter = !!(category && shouldHaveFooter(category) && productCode);
+
+  const codeLine = [productCode ? `COD: ${productCode}` : "", classificacao].filter(Boolean).join("   |   ");
 
   return (
     <Dialog
@@ -70,20 +66,12 @@ export function ProductImageDialog({
               alt={productName}
               draggable={false}
             />
-            {showFooter && (() => {
-              const sizeParts: string[] = [];
-              if (haste) sizeParts.push(`H:${haste}`);
-              if (lente) sizeParts.push(`L:${lente}`);
-              if (ponte) sizeParts.push(`P:${ponte}`);
-              const sizesText = sizeParts.join(" ");
-              const rightText = [classificacao, sizesText].filter(Boolean).join(" | ");
-              return (
-                <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-3 py-1.5 flex justify-between items-center">
-                  <span className="text-white text-xs font-semibold">COD: {productCode}</span>
-                  {rightText && <span className="text-white text-xs font-semibold">{rightText}</span>}
-                </div>
-              );
-            })()}
+            {showFooter && (
+              <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-4 py-2 flex flex-col gap-0.5">
+                <span className="text-white text-xs font-semibold leading-tight">{productName}</span>
+                {codeLine && <span className="text-white/90 text-[11px] font-medium leading-tight">{codeLine}</span>}
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>
