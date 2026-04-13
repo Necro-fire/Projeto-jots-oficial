@@ -138,8 +138,9 @@ function detectFooterSeparatorStart(ctx: CanvasRenderingContext2D, width: number
 
 function detectFooterBandStart(ctx: CanvasRenderingContext2D, width: number, height: number): number | null {
   const scanStart = getScanStart(height);
-  const metrics = buildRowMetrics(ctx, width, scanStart, height, true);
-  return detectFooterBandStartFromMetrics(metrics, scanStart, height);
+  const rawMetrics = buildRowMetrics(ctx, width, scanStart, height, false);
+  const metrics = smoothMetrics(rawMetrics);
+  return detectFooterBandStartFromMetrics(metrics, scanStart, height, rawMetrics);
 }
 
 function getScanStart(height: number): number {
@@ -218,7 +219,12 @@ function detectFooterSeparatorStartFromMetrics(metrics: RowMetric[], scanStart: 
   return null;
 }
 
-function detectFooterBandStartFromMetrics(metrics: RowMetric[], scanStart: number, imageHeight: number): number | null {
+function detectFooterBandStartFromMetrics(
+  metrics: RowMetric[],
+  scanStart: number,
+  imageHeight: number,
+  rawMetrics: RowMetric[] = metrics,
+): number | null {
   if (metrics.length === 0) return null;
 
   const minFooterHeight = Math.min(imageHeight - 1, getFooterHeight(imageHeight));
@@ -260,11 +266,37 @@ function detectFooterBandStartFromMetrics(metrics: RowMetric[], scanStart: numbe
       transition > 18 &&
       (aboveDark + 0.08 < bandDark || aboveLuma > bandLuma + 26)
     ) {
-      return startY;
+      return refineFooterBandStart(rawMetrics, scanStart, index, imageHeight);
     }
   }
 
   return null;
+}
+
+function refineFooterBandStart(
+  rawMetrics: RowMetric[],
+  scanStart: number,
+  coarseIndex: number,
+  imageHeight: number,
+): number {
+  const coarseStartY = scanStart + coarseIndex;
+  const footerHeight = imageHeight - coarseStartY;
+  const searchStart = Math.max(8, coarseIndex - Math.min(12, Math.round(footerHeight * 0.2)));
+  const searchEnd = Math.min(rawMetrics.length - 6, coarseIndex + 8);
+
+  for (let index = searchStart; index <= searchEnd; index++) {
+    const row = rawMetrics[index];
+    const previous = rawMetrics.slice(Math.max(0, index - 6), index);
+    const next = rawMetrics.slice(index, Math.min(rawMetrics.length, index + 6));
+    const transition = average(previous.map((item) => item.luma)) - average(next.map((item) => item.luma));
+    const nextDark = average(next.map((item) => item.darkRatio));
+
+    if (row.darkRatio > 0.12 && nextDark > 0.18 && transition > 24) {
+      return scanStart + index;
+    }
+  }
+
+  return coarseStartY;
 }
 
 function average(values: number[]): number {
