@@ -12,6 +12,9 @@ interface ProductImageDialogProps {
   category?: string;
   productCode?: string;
   classificacao?: string;
+  haste?: number;
+  lente?: number;
+  ponte?: number;
 }
 
 export function ProductImageDialog({
@@ -22,6 +25,9 @@ export function ProductImageDialog({
   category,
   productCode,
   classificacao,
+  haste,
+  lente,
+  ponte,
 }: ProductImageDialogProps) {
   const [zoom, setZoom] = useState(1);
 
@@ -31,7 +37,11 @@ export function ProductImageDialog({
 
   const showFooter = !!(category && shouldHaveFooter(category) && productCode);
 
-  const codeLine = [productCode ? `COD: ${productCode}` : "", classificacao].filter(Boolean).join("   |   ");
+  const measureParts: string[] = [];
+  if (haste) measureParts.push(`Haste: ${haste}`);
+  if (lente) measureParts.push(`Lente: ${lente}`);
+  if (ponte) measureParts.push(`Ponte: ${ponte}`);
+  const codeLine = [productCode ? `COD: ${productCode}` : "", classificacao, measureParts.length ? measureParts.join("  ") : ""].filter(Boolean).join("   |   ");
 
   return (
     <Dialog
