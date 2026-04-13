@@ -62,7 +62,7 @@ export default function PDV() {
   const [splitInstallmentAmount, setSplitInstallmentAmount] = useState(0);
   const [splitBoletoEntryId, setSplitBoletoEntryId] = useState<string | null>(null);
   const [splitBoletoAmount, setSplitBoletoAmount] = useState(0);
-  const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; code?: string; classificacao?: string; haste?: number; lente?: number; ponte?: number } | null>(null);
+  const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; code?: string; classificacao?: string } | null>(null);
   const [cupomData, setCupomData] = useState<CupomFiscalData | null>(null);
   const [showCupom, setShowCupom] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -470,7 +470,7 @@ export default function PDV() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setZoomImage({ url: product.image_url, name: product.model || product.referencia, category: product.category, code: product.referencia, classificacao: (product as any).classificacao, haste: product.temple_size, lente: product.lens_size, ponte: product.bridge_size });
+                              setZoomImage({ url: product.image_url, name: product.model || product.referencia, category: product.category, code: product.referencia, classificacao: (product as any).classificacao });
                             }}
                             className="absolute top-1 right-1 h-6 w-6 rounded-full bg-background/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-background"
                             title="Ver imagem"
@@ -820,9 +820,6 @@ export default function PDV() {
         category={zoomImage?.category}
         productCode={zoomImage?.code}
         classificacao={zoomImage?.classificacao}
-        haste={zoomImage?.haste}
-        lente={zoomImage?.lente}
-        ponte={zoomImage?.ponte}
       />
 
       {/* Cupom Fiscal Dialog */}
