@@ -3,7 +3,7 @@
  * Applies only to Receituário, Solar, Clip-on categories.
  * Footer layout (2 lines):
  *   Line 1: Nome completo da peça
- *   Line 2: COD: XXXXX  |  C3
+ *   Line 2: COD: XXXXX  |  C3  |  Haste: XX  Lente: XX  Ponte: XX
  */
 
 const FOOTER_CATEGORIES = ["Receituário", "Solar", "Clip-on"];
@@ -21,6 +21,7 @@ export async function renderImageWithFooter(
   code: string,
   classificacao: string,
   productName?: string,
+  measures?: { haste?: number; lente?: number; ponte?: number },
 ): Promise<Blob> {
   const img = await loadImage(imageUrl);
   const canvas = document.createElement("canvas");
@@ -53,10 +54,15 @@ export async function renderImageWithFooter(
     ctx.fillText(nameText, pad, line1Y);
   }
 
-  // Line 2 — COD + Classification (bottom of footer)
+  // Line 2 — COD + Classification + Measures (bottom of footer)
   const line2Parts: string[] = [];
   if (code) line2Parts.push(`COD: ${code}`);
   if (classificacao) line2Parts.push(classificacao);
+  const measureParts: string[] = [];
+  if (measures?.haste) measureParts.push(`Haste: ${measures.haste}`);
+  if (measures?.lente) measureParts.push(`Lente: ${measures.lente}`);
+  if (measures?.ponte) measureParts.push(`Ponte: ${measures.ponte}`);
+  if (measureParts.length) line2Parts.push(measureParts.join("  "));
   const line2Text = line2Parts.join("   |   ");
 
   if (line2Text) {
