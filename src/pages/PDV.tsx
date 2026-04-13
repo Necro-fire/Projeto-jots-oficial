@@ -820,9 +820,6 @@ export default function PDV() {
         category={zoomImage?.category}
         productCode={zoomImage?.code}
         classificacao={zoomImage?.classificacao}
-        haste={zoomImage?.haste}
-        lente={zoomImage?.lente}
-        ponte={zoomImage?.ponte}
       />
 
       {/* Cupom Fiscal Dialog */}

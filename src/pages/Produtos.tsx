@@ -30,7 +30,7 @@ export default function Produtos() {
   const canEdit = hasPermission('Produtos', 'edit');
   const canDelete = hasPermission('Produtos', 'delete');
   const canViewImages = hasPermission('Produtos', 'view_images');
-  const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; code?: string; classificacao?: string; haste?: number; lente?: number; ponte?: number } | null>(null);
+  const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; code?: string; classificacao?: string } | null>(null);
 
   const { data: products } = useProducts();
 
@@ -372,9 +372,6 @@ export default function Produtos() {
             category={zoomImage.category}
             productCode={zoomImage.code}
             classificacao={zoomImage.classificacao}
-            haste={zoomImage.haste}
-            lente={zoomImage.lente}
-            ponte={zoomImage.ponte}
           />
         )}
         
