@@ -7,15 +7,30 @@
  */
 
 const FOOTER_CATEGORIES = ["Receituário", "Solar", "Clip-on"];
+const FOOTER_RATIO = 0.09;
+const MIN_FOOTER_HEIGHT = 56;
+const MAX_FOOTER_SCAN_RATIO = 0.38;
+const FOOTER_SEPARATOR_HEIGHT = 2;
+
+type RowMetric = {
+  darkRatio: number;
+  luma: number;
+};
 
 export function shouldHaveFooter(category: string): boolean {
   return FOOTER_CATEGORIES.includes(category);
 }
 
+export const __productImageFooterTestUtils = {
+  detectFooterBandStartFromMetrics,
+  detectFooterSeparatorStartFromMetrics,
+  getFooterHeight,
+};
+
 /**
  * Draw footer overlay on a canvas with the product image.
- * Strips any previously-baked footer before applying the new one
- * to avoid duplication when the image is replaced.
+ * Removes any previously baked footer before applying a new one,
+ * preventing accumulation when the product image is replaced.
  * Returns a Blob of the composited image (JPEG).
  */
 export async function renderImageWithFooter(
@@ -25,88 +40,71 @@ export async function renderImageWithFooter(
   measures?: { haste?: number; lente?: number; ponte?: number },
 ): Promise<Blob> {
   const img = await loadImage(imageUrl);
-  const canvas = document.createElement("canvas");
   const srcW = img.naturalWidth;
   const srcH = img.naturalHeight;
 
-  // --- Strip old footer if present ---
-  // Old footers occupy ~9% of image height at the bottom.
-  // Detect by sampling: if bottom strip is mostly dark overlay, crop it.
   const detectCanvas = document.createElement("canvas");
   detectCanvas.width = srcW;
   detectCanvas.height = srcH;
-  const dCtx = detectCanvas.getContext("2d")!;
-  dCtx.drawImage(img, 0, 0);
+  const detectCtx = detectCanvas.getContext("2d");
+  if (!detectCtx) throw new Error("Canvas context unavailable");
+  detectCtx.drawImage(img, 0, 0);
 
-  const stripH = Math.round(srcH * 0.09);
-  const sampleData = dCtx.getImageData(0, srcH - stripH, srcW, stripH).data;
-  let darkPixels = 0;
-  const totalPixels = srcW * stripH;
-  for (let i = 0; i < sampleData.length; i += 4) {
-    // Pixel is "dark overlay" if R,G,B all < 80 and alpha > 200
-    if (sampleData[i] < 80 && sampleData[i + 1] < 80 && sampleData[i + 2] < 80 && sampleData[i + 3] > 200) {
-      darkPixels++;
-    }
-  }
-  const darkRatio = darkPixels / totalPixels;
-  // If >40% of the bottom strip is dark, assume old footer exists → crop it
-  const cropH = darkRatio > 0.4 ? stripH : 0;
-  const cleanH = srcH - cropH;
+  const cropH = detectExistingFooterHeight(detectCtx, srcW, srcH);
+  const cleanH = Math.max(1, srcH - cropH);
 
-  // --- Draw clean image + new footer ---
-  canvas.width = srcW;
-  canvas.height = cleanH; // start with cropped height
-  const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(img, 0, 0, srcW, cleanH, 0, 0, srcW, cleanH);
+  const cleanCanvas = document.createElement("canvas");
+  cleanCanvas.width = srcW;
+  cleanCanvas.height = cleanH;
+  const cleanCtx = cleanCanvas.getContext("2d");
+  if (!cleanCtx) throw new Error("Canvas context unavailable");
+  cleanCtx.drawImage(img, 0, 0, srcW, cleanH, 0, 0, srcW, cleanH);
 
-  // Now expand canvas to add new footer
-  const footerH = Math.max(56, Math.round(cleanH * 0.09));
-  const finalH = cleanH + footerH;
+  const footerH = getFooterHeight(cleanH);
   const finalCanvas = document.createElement("canvas");
   finalCanvas.width = srcW;
-  finalCanvas.height = finalH;
-  const fCtx = finalCanvas.getContext("2d")!;
+  finalCanvas.height = cleanH + footerH;
+  const finalCtx = finalCanvas.getContext("2d");
+  if (!finalCtx) throw new Error("Canvas context unavailable");
 
-  // Draw clean image
-  fCtx.drawImage(canvas, 0, 0);
+  finalCtx.drawImage(cleanCanvas, 0, 0);
 
-  // Semi-transparent dark overlay for footer
   const footerY = cleanH;
-  fCtx.fillStyle = "rgba(0, 0, 0, 0.60)";
-  fCtx.fillRect(0, footerY, srcW, footerH);
+  finalCtx.fillStyle = "rgba(0, 0, 0, 0.60)";
+  finalCtx.fillRect(0, footerY, srcW, footerH);
+
+  // Subtle separator line used both for visual polish and reliable future cleanup.
+  finalCtx.fillStyle = "rgba(0, 0, 0, 0.88)";
+  finalCtx.fillRect(0, footerY, srcW, FOOTER_SEPARATOR_HEIGHT);
 
   const pad = Math.round(srcW * 0.04);
-
-  // Line 1 — Product name (top of footer)
   const nameText = productName || "";
   if (nameText) {
     const nameFontSize = Math.max(12, Math.round(footerH * 0.35));
-    fCtx.font = `600 ${nameFontSize}px Arial, sans-serif`;
-    fCtx.fillStyle = "#ffffff";
-    fCtx.textBaseline = "middle";
-    fCtx.textAlign = "left";
-    const line1Y = footerY + footerH * 0.33;
-    fCtx.fillText(nameText, pad, line1Y);
+    finalCtx.font = `600 ${nameFontSize}px Arial, sans-serif`;
+    finalCtx.fillStyle = "#ffffff";
+    finalCtx.textBaseline = "middle";
+    finalCtx.textAlign = "left";
+    finalCtx.fillText(nameText, pad, footerY + footerH * 0.33);
   }
 
-  // Line 2 — Classification + Measures
   const line2Parts: string[] = [];
   if (classificacao) line2Parts.push(classificacao);
+
   const measureParts: string[] = [];
   if (measures?.haste) measureParts.push(`Haste: ${measures.haste}`);
   if (measures?.lente) measureParts.push(`Lente: ${measures.lente}`);
   if (measures?.ponte) measureParts.push(`Ponte: ${measures.ponte}`);
   if (measureParts.length) line2Parts.push(measureParts.join("  "));
-  const line2Text = line2Parts.join("   |   ");
 
+  const line2Text = line2Parts.join("   |   ");
   if (line2Text) {
-    const classFontSize = Math.max(11, Math.round(footerH * 0.28));
-    fCtx.font = `500 ${classFontSize}px Arial, sans-serif`;
-    fCtx.fillStyle = "rgba(255, 255, 255, 0.90)";
-    fCtx.textBaseline = "middle";
-    fCtx.textAlign = "left";
-    const line2Y = nameText ? footerY + footerH * 0.70 : footerY + footerH * 0.5;
-    fCtx.fillText(line2Text, pad, line2Y);
+    const line2FontSize = Math.max(11, Math.round(footerH * 0.28));
+    finalCtx.font = `500 ${line2FontSize}px Arial, sans-serif`;
+    finalCtx.fillStyle = "rgba(255, 255, 255, 0.90)";
+    finalCtx.textBaseline = "middle";
+    finalCtx.textAlign = "left";
+    finalCtx.fillText(line2Text, pad, nameText ? footerY + footerH * 0.7 : footerY + footerH * 0.5);
   }
 
   return new Promise((resolve, reject) => {
@@ -116,6 +114,197 @@ export async function renderImageWithFooter(
       0.92,
     );
   });
+}
+
+function getFooterHeight(imageHeight: number): number {
+  return Math.max(MIN_FOOTER_HEIGHT, Math.round(imageHeight * FOOTER_RATIO));
+}
+
+function detectExistingFooterHeight(ctx: CanvasRenderingContext2D, width: number, height: number): number {
+  const separatorStart = detectFooterSeparatorStart(ctx, width, height);
+  if (separatorStart !== null) {
+    return Math.max(0, height - separatorStart);
+  }
+
+  const bandStart = detectFooterBandStart(ctx, width, height);
+  return bandStart === null ? 0 : Math.max(0, height - bandStart);
+}
+
+function detectFooterSeparatorStart(ctx: CanvasRenderingContext2D, width: number, height: number): number | null {
+  const scanStart = getScanStart(height);
+  const rawMetrics = buildRowMetrics(ctx, width, scanStart, height, false);
+  return detectFooterSeparatorStartFromMetrics(rawMetrics, scanStart);
+}
+
+function detectFooterBandStart(ctx: CanvasRenderingContext2D, width: number, height: number): number | null {
+  const scanStart = getScanStart(height);
+  const rawMetrics = buildRowMetrics(ctx, width, scanStart, height, false);
+  const metrics = smoothMetrics(rawMetrics);
+  return detectFooterBandStartFromMetrics(metrics, scanStart, height, rawMetrics);
+}
+
+function getScanStart(height: number): number {
+  const maxScanHeight = Math.min(Math.round(height * MAX_FOOTER_SCAN_RATIO), height - 1);
+  return Math.max(0, height - maxScanHeight);
+}
+
+function buildRowMetrics(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  startY: number,
+  endY: number,
+  smooth: boolean,
+): RowMetric[] {
+  const scanHeight = Math.max(0, endY - startY);
+  if (scanHeight === 0) return [];
+
+  const sampleStepX = Math.max(1, Math.floor(width / 180));
+  const imageData = ctx.getImageData(0, startY, width, scanHeight).data;
+  const metrics: RowMetric[] = [];
+
+  for (let y = 0; y < scanHeight; y++) {
+    let lumaTotal = 0;
+    let darkPixels = 0;
+    let samples = 0;
+
+    for (let x = 0; x < width; x += sampleStepX) {
+      const index = (y * width + x) * 4;
+      const luma = getLuma(imageData[index], imageData[index + 1], imageData[index + 2]);
+      lumaTotal += luma;
+      if (luma < 118) darkPixels++;
+      samples++;
+    }
+
+    metrics.push({
+      darkRatio: samples > 0 ? darkPixels / samples : 0,
+      luma: samples > 0 ? lumaTotal / samples : 255,
+    });
+  }
+
+  return smooth ? smoothMetrics(metrics) : metrics;
+}
+
+function smoothMetrics(metrics: RowMetric[]): RowMetric[] {
+  if (metrics.length < 3) return metrics;
+
+  return metrics.map((_, index) => {
+    const start = Math.max(0, index - 2);
+    const end = Math.min(metrics.length, index + 3);
+    const window = metrics.slice(start, end);
+    return {
+      darkRatio: average(window.map((item) => item.darkRatio)),
+      luma: average(window.map((item) => item.luma)),
+    };
+  });
+}
+
+function detectFooterSeparatorStartFromMetrics(metrics: RowMetric[], scanStart: number): number | null {
+  if (metrics.length < FOOTER_SEPARATOR_HEIGHT) return null;
+
+  for (let index = 0; index <= metrics.length - FOOTER_SEPARATOR_HEIGHT; index++) {
+    let isSeparator = true;
+    for (let offset = 0; offset < FOOTER_SEPARATOR_HEIGHT; offset++) {
+      const row = metrics[index + offset];
+      if (row.darkRatio < 0.95 || row.luma > 24) {
+        isSeparator = false;
+        break;
+      }
+    }
+
+    if (isSeparator) {
+      return scanStart + index;
+    }
+  }
+
+  return null;
+}
+
+function detectFooterBandStartFromMetrics(
+  metrics: RowMetric[],
+  scanStart: number,
+  imageHeight: number,
+  rawMetrics: RowMetric[] = metrics,
+): number | null {
+  if (metrics.length === 0) return null;
+
+  const minFooterHeight = Math.min(imageHeight - 1, getFooterHeight(imageHeight));
+  const minBandRows = Math.max(18, Math.round(minFooterHeight * 0.55));
+  const bottomWindow = metrics.slice(-Math.min(metrics.length, 12));
+  const bottomDarkRatio = average(bottomWindow.map((row) => row.darkRatio));
+  const bottomLuma = average(bottomWindow.map((row) => row.luma));
+
+  if (bottomDarkRatio < 0.2 || bottomLuma > 138) {
+    return null;
+  }
+
+  for (let index = 8; index <= metrics.length - minBandRows; index++) {
+    const startY = scanStart + index;
+    const cropHeight = imageHeight - startY;
+    if (cropHeight < minFooterHeight) continue;
+
+    const above = metrics.slice(Math.max(0, index - 12), index);
+    const leading = metrics.slice(index, Math.min(metrics.length, index + 10));
+    const band = metrics.slice(index);
+
+    const aboveDark = average(above.map((row) => row.darkRatio));
+    const aboveLuma = average(above.map((row) => row.luma));
+    const leadingDark = average(leading.map((row) => row.darkRatio));
+    const leadingLuma = average(leading.map((row) => row.luma));
+    const bandDark = average(band.map((row) => row.darkRatio));
+    const bandLuma = average(band.map((row) => row.luma));
+    const bandConsistency =
+      band.filter((row) => row.darkRatio > 0.18 || row.luma < Math.min(134, bandLuma + 20)).length / band.length;
+
+    const transition = aboveLuma - leadingLuma;
+
+    if (
+      leadingDark > 0.18 &&
+      leadingLuma < 132 &&
+      bandDark > 0.22 &&
+      bandLuma < 128 &&
+      bandConsistency > 0.7 &&
+      transition > 18 &&
+      (aboveDark + 0.08 < bandDark || aboveLuma > bandLuma + 26)
+    ) {
+      return refineFooterBandStart(rawMetrics, scanStart, index, imageHeight);
+    }
+  }
+
+  return null;
+}
+
+function refineFooterBandStart(
+  rawMetrics: RowMetric[],
+  scanStart: number,
+  coarseIndex: number,
+  imageHeight: number,
+): number {
+  const coarseStartY = scanStart + coarseIndex;
+  const footerHeight = imageHeight - coarseStartY;
+  const searchStart = Math.max(8, coarseIndex - Math.min(12, Math.round(footerHeight * 0.2)));
+  const searchEnd = Math.min(rawMetrics.length - 6, coarseIndex + 8);
+
+  for (let index = searchStart; index <= searchEnd; index++) {
+    const row = rawMetrics[index];
+    const previous = rawMetrics.slice(Math.max(0, index - 6), index);
+    const next = rawMetrics.slice(index, Math.min(rawMetrics.length, index + 6));
+    const transition = average(previous.map((item) => item.luma)) - average(next.map((item) => item.luma));
+    const nextDark = average(next.map((item) => item.darkRatio));
+
+    if (row.darkRatio > 0.12 && nextDark > 0.18 && transition > 24) {
+      return scanStart + index;
+    }
+  }
+
+  return coarseStartY;
+}
+
+function average(values: number[]): number {
+  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function getLuma(r: number, g: number, b: number): number {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 function loadImage(url: string): Promise<HTMLImageElement> {
