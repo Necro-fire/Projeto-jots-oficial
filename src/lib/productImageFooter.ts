@@ -3,7 +3,7 @@
  * Applies only to Receituário, Solar, Clip-on categories.
  * Footer layout (2 lines):
  *   Line 1: Nome completo da peça
- *   Line 2: Classificação (C1–C10)
+ *   Line 2: Classificação   |   Haste: XX  Lente: XX  Ponte: XX
  */
 
 const FOOTER_CATEGORIES = ["Receituário", "Solar", "Clip-on"];
@@ -22,6 +22,7 @@ export async function renderImageWithFooter(
   imageUrl: string,
   productName?: string,
   classificacao?: string,
+  measures?: { haste?: number; lente?: number; ponte?: number },
 ): Promise<Blob> {
   const img = await loadImage(imageUrl);
   const canvas = document.createElement("canvas");
@@ -88,16 +89,24 @@ export async function renderImageWithFooter(
     fCtx.fillText(nameText, pad, line1Y);
   }
 
-  // Line 2 — Classification only
-  const classText = classificacao || "";
-  if (classText) {
+  // Line 2 — Classification + Measures
+  const line2Parts: string[] = [];
+  if (classificacao) line2Parts.push(classificacao);
+  const measureParts: string[] = [];
+  if (measures?.haste) measureParts.push(`Haste: ${measures.haste}`);
+  if (measures?.lente) measureParts.push(`Lente: ${measures.lente}`);
+  if (measures?.ponte) measureParts.push(`Ponte: ${measures.ponte}`);
+  if (measureParts.length) line2Parts.push(measureParts.join("  "));
+  const line2Text = line2Parts.join("   |   ");
+
+  if (line2Text) {
     const classFontSize = Math.max(11, Math.round(footerH * 0.28));
     fCtx.font = `500 ${classFontSize}px Arial, sans-serif`;
     fCtx.fillStyle = "rgba(255, 255, 255, 0.90)";
     fCtx.textBaseline = "middle";
     fCtx.textAlign = "left";
     const line2Y = nameText ? footerY + footerH * 0.70 : footerY + footerH * 0.5;
-    fCtx.fillText(classText, pad, line2Y);
+    fCtx.fillText(line2Text, pad, line2Y);
   }
 
   return new Promise((resolve, reject) => {

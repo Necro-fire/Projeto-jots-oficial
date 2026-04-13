@@ -11,6 +11,9 @@ interface ProductImageDialogProps {
   productName: string;
   category?: string;
   classificacao?: string;
+  haste?: number;
+  lente?: number;
+  ponte?: number;
 }
 
 export function ProductImageDialog({
@@ -20,6 +23,9 @@ export function ProductImageDialog({
   productName,
   category,
   classificacao,
+  haste,
+  lente,
+  ponte,
 }: ProductImageDialogProps) {
   const [zoom, setZoom] = useState(1);
 
@@ -66,7 +72,9 @@ export function ProductImageDialog({
             {showFooter && (
               <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-4 py-2 flex flex-col gap-0.5">
                 <span className="text-white text-xs font-semibold leading-tight">{productName}</span>
-                {classificacao && <span className="text-white/90 text-[11px] font-medium leading-tight">{classificacao}</span>}
+                <span className="text-white/90 text-[11px] font-medium leading-tight">
+                  {[classificacao, [haste && `Haste: ${haste}`, lente && `Lente: ${lente}`, ponte && `Ponte: ${ponte}`].filter(Boolean).join("  ")].filter(Boolean).join("   |   ")}
+                </span>
               </div>
             )}
           </div>
