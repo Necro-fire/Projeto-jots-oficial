@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Truck, Search, Plus, Pencil, Trash2, Package, History, Eye, Receipt } from "lucide-react";
+import { Truck, Search, Plus, Pencil, Trash2, Package, ShoppingCart, Eye, Receipt } from "lucide-react";
 import { FilialSelector } from "@/components/FilialSelector";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
