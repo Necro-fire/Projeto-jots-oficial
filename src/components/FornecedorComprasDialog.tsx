@@ -33,6 +33,21 @@ export function FornecedorComprasDialog({ open, onOpenChange, fornecedor }: Prop
     }
 
     setSaving(true);
+
+    // Require open caixa
+    const { data: caixaAberto } = await (supabase as any)
+      .from("caixas")
+      .select("id")
+      .eq("filial_id", fornecedor.filial_id)
+      .eq("status", "aberto")
+      .maybeSingle();
+
+    if (!caixaAberto) {
+      toast.error("O caixa da filial precisa estar aberto para registrar compras.");
+      setSaving(false);
+      return;
+    }
+
     const { data: compra, error } = await (supabase as any)
       .from("compras_fornecedor")
       .insert({
@@ -52,24 +67,15 @@ export function FornecedorComprasDialog({ open, onOpenChange, fornecedor }: Prop
       toast.error("Erro ao registrar compra");
     } else {
       // Register as expense in open caixa
-      const { data: caixaAberto } = await (supabase as any)
-        .from("caixas")
-        .select("id")
-        .eq("filial_id", fornecedor.filial_id)
-        .eq("status", "aberto")
-        .maybeSingle();
-
-      if (caixaAberto) {
-        await (supabase as any).from("caixa_movimentacoes").insert({
-          caixa_id: caixaAberto.id,
-          tipo: "saida",
-          valor: form.valor_total,
-          forma_pagamento: "dinheiro",
-          descricao: `Compra: ${form.descricao} — Fornecedor: ${fornecedor.nome}`,
-          usuario_id: profile.id,
-          usuario_nome: profile.nome,
-        });
-      }
+      await (supabase as any).from("caixa_movimentacoes").insert({
+        caixa_id: caixaAberto.id,
+        tipo: "saida",
+        valor: form.valor_total,
+        forma_pagamento: "dinheiro",
+        descricao: `Compra: ${form.descricao} — Fornecedor: ${fornecedor.nome}`,
+        usuario_id: profile.id,
+        usuario_nome: profile.nome,
+      });
 
       toast.success("Compra registrada");
       setForm({ descricao: "", valor_total: 0, data_compra: "", observacoes: "" });
