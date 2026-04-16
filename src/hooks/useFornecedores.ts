@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFilial } from "@/contexts/FilialContext";
 
@@ -42,8 +42,10 @@ export function useFornecedores() {
   const [data, setData] = useState<Fornecedor[]>([]);
   const [loading, setLoading] = useState(true);
   const { selectedFilial } = useFilial();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchData = useCallback(async () => {
+    setLoading(true);
     const { data: rows, error } = await (supabase as any)
       .from("fornecedores")
       .select("*")
@@ -55,14 +57,26 @@ export function useFornecedores() {
 
   useEffect(() => {
     fetchData();
-    const channelName = "fornecedores-rt-" + selectedFilial + "-" + Date.now();
-    const channel = supabase
-      .channel(channelName)
-      .on("postgres_changes", { event: "*", schema: "public", table: "fornecedores" }, () => {
-        fetchData();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    // Clean up previous channel before creating new one
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    const channel = supabase.channel("fornecedores-rt-" + selectedFilial);
+    channel.on("postgres_changes", { event: "*", schema: "public", table: "fornecedores" }, () => {
+      fetchData();
+    });
+    channel.subscribe();
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
   }, [fetchData, selectedFilial]);
 
   return { data, loading, refetch: fetchData };

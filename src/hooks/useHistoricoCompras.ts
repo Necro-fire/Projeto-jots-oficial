@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFilial } from "@/contexts/FilialContext";
 
@@ -32,6 +32,7 @@ export function useHistoricoCompras() {
   const [data, setData] = useState<CompraComFornecedor[]>([]);
   const [loading, setLoading] = useState(true);
   const { selectedFilial } = useFilial();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -53,14 +54,26 @@ export function useHistoricoCompras() {
 
   useEffect(() => {
     fetchData();
-    const channel = supabase
-      .channel("compras-historico")
-      .on("postgres_changes", { event: "*", schema: "public", table: "compras_fornecedor" }, () => {
-        fetchData();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchData]);
+
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    const channel = supabase.channel("compras-rt-" + selectedFilial);
+    channel.on("postgres_changes", { event: "*", schema: "public", table: "compras_fornecedor" }, () => {
+      fetchData();
+    });
+    channel.subscribe();
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [fetchData, selectedFilial]);
 
   return { data, loading, refetch: fetchData };
 }
