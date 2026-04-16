@@ -56,6 +56,7 @@ const managementNav = [
   { title: "Estoque", url: "/estoque", icon: Warehouse, module: "estoque", action: "view" },
   { title: "Caixa", url: "/caixa", icon: Wallet, module: "caixa", action: "view" },
   { title: "Fornecedores", url: "/fornecedores", icon: Truck, module: "fornecedores", action: "view" },
+  { title: "Histórico Compras", url: "/historico-compras", icon: Receipt, module: "fornecedores", action: "view" },
   { title: "Relatórios", url: "/relatorios", icon: BarChart3, module: "relatorios", action: "view" },
   { title: "Tráfego entre Filiais", url: "/trafego-filiais", icon: ArrowLeftRight, module: "trafego_filiais", action: "view" },
   { title: "Produtos Consignados", url: "/produtos-consignados", icon: PackageCheck, module: "produtos_consignados", action: "view" },
