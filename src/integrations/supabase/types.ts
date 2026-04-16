@@ -322,8 +322,60 @@ export type Database = {
         }
         Relationships: []
       }
+      compra_items: {
+        Row: {
+          compra_id: string
+          created_at: string
+          id: string
+          produto_code: string
+          produto_id: string
+          produto_model: string
+          quantidade: number
+          total: number
+          valor_unitario: number
+        }
+        Insert: {
+          compra_id: string
+          created_at?: string
+          id?: string
+          produto_code?: string
+          produto_id: string
+          produto_model?: string
+          quantidade?: number
+          total?: number
+          valor_unitario?: number
+        }
+        Update: {
+          compra_id?: string
+          created_at?: string
+          id?: string
+          produto_code?: string
+          produto_id?: string
+          produto_model?: string
+          quantidade?: number
+          total?: number
+          valor_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compra_items_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "compras_fornecedor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compra_items_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compras_fornecedor: {
         Row: {
+          codigo: string
           created_at: string
           data_compra: string
           descricao: string
@@ -336,6 +388,7 @@ export type Database = {
           valor_total: number
         }
         Insert: {
+          codigo?: string
           created_at?: string
           data_compra?: string
           descricao?: string
@@ -348,6 +401,7 @@ export type Database = {
           valor_total?: number
         }
         Update: {
+          codigo?: string
           created_at?: string
           data_compra?: string
           descricao?: string
@@ -1321,6 +1375,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      generate_compra_code: { Args: never; Returns: string }
       generate_fornecedor_code: { Args: never; Returns: string }
       generate_product_codes: { Args: never; Returns: Json }
       get_profiles_count: { Args: never; Returns: number }
