@@ -18,7 +18,7 @@ import {
   ArrowLeftRight,
   PackageCheck,
   Truck,
-  Clock,
+  
 } from "lucide-react";
 import jotsLogo from "@/assets/jots-logo.png";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
