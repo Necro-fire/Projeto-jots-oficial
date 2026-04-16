@@ -19,13 +19,13 @@ export function ConsignadoDashboard({ items }: Props) {
     const valorVendido = vendidos.reduce((s, i) => s + Number(i.valor_total), 0);
 
     const pieData = [
-      { name: "Consignados", value: consignados.length, color: COLORS[0] },
-      { name: "Vendidos", value: vendidos.length, color: COLORS[1] },
-      { name: "Devolvidos", value: devolvidos.length, color: COLORS[2] },
+      { name: "Consignados", value: consignados.length },
+      { name: "Vendidos", value: vendidos.length },
+      { name: "Devolvidos", value: devolvidos.length },
     ].filter(d => d.value > 0);
 
     const barData = [
-      { name: "Consignado", valor: valorConsignado },
+      { name: "Em Consignação", valor: valorConsignado },
       { name: "Vendido", valor: valorVendido },
     ];
 
@@ -41,6 +41,14 @@ export function ConsignadoDashboard({ items }: Props) {
     { label: "Valor em Consignação", value: fmt(stats.valorConsignado), icon: DollarSign, color: "text-amber-500", bgColor: "bg-amber-500/10" },
     { label: "Valor Vendido", value: fmt(stats.valorVendido), icon: TrendingUp, color: "text-emerald-500", bgColor: "bg-emerald-500/10" },
   ];
+
+  // Calculate a nice max value for the Y axis
+  const maxBarValue = Math.max(stats.valorConsignado, stats.valorVendido, 1);
+
+  const formatYAxis = (v: number) => {
+    if (v >= 1000) return `R$ ${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k`;
+    return `R$ ${v.toFixed(0)}`;
+  };
 
   return (
     <div className="space-y-4">
@@ -75,15 +83,15 @@ export function ConsignadoDashboard({ items }: Props) {
                   outerRadius={80}
                   paddingAngle={4}
                   dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}`}
-                  labelLine={false}
                 >
                   {stats.pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                    <Cell key={`cell-${index}`} fill={COLORS[
+                      entry.name === "Consignados" ? 0 : entry.name === "Vendidos" ? 1 : 2
+                    ]} strokeWidth={0} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => [`${value} itens`, ""]} />
-                <Legend />
+                <Tooltip formatter={(value: number, name: string) => [`${value} itens`, name]} />
+                <Legend formatter={(value: string) => value} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -94,7 +102,13 @@ export function ConsignadoDashboard({ items }: Props) {
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={stats.barData} barSize={48}>
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `R$ ${(v / 1000).toFixed(0)}k`} />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={formatYAxis}
+                  domain={[0, "auto"]}
+                  allowDecimals={false}
+                  tickCount={5}
+                />
                 <Tooltip formatter={(value: number) => [fmt(value), "Valor"]} />
                 <Bar dataKey="valor" radius={[6, 6, 0, 0]}>
                   <Cell fill="#f59e0b" />
