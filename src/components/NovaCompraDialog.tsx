@@ -167,6 +167,27 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
 
       if (itemsError) throw itemsError;
 
+      // Register purchase as expense in the open caixa
+      const { data: caixaAberto } = await (supabase as any)
+        .from("caixas")
+        .select("id")
+        .eq("filial_id", compraFilialId)
+        .eq("status", "aberto")
+        .maybeSingle();
+
+      if (caixaAberto) {
+        const fornNome = fornecedores.find(f => f.id === fornecedorId)?.nome || "";
+        await (supabase as any).from("caixa_movimentacoes").insert({
+          caixa_id: caixaAberto.id,
+          tipo: "saida",
+          valor: valorTotal,
+          forma_pagamento: "dinheiro",
+          descricao: `Compra ${descricao ? descricao + " — " : ""}Fornecedor: ${fornNome}`,
+          usuario_id: profile.id,
+          usuario_nome: profile.nome,
+        });
+      }
+
       toast.success("Compra registrada com sucesso");
       onSuccess();
       onOpenChange(false);

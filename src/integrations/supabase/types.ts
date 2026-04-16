@@ -561,7 +561,22 @@ export type Database = {
           venda_id?: string | null
           vendedor_nome?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "consignados_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consignados_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       descontos_atacado: {
         Row: {
