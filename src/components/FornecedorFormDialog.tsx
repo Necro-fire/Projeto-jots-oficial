@@ -43,7 +43,16 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
   }, [editing, open]);
 
   const handleSave = async () => {
-    if (!form.nome.trim()) { toast.error("Nome é obrigatório"); return; }
+    if (!form.nome.trim()) {
+      toast.error("Nome é obrigatório");
+      return;
+    }
+
+    if (!editing?.id && selectedFilial === "all") {
+      toast.error("Selecione uma filial específica para cadastrar o fornecedor.");
+      return;
+    }
+
     setSaving(true);
     try {
       if (editing?.id) {
