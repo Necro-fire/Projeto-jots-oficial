@@ -26,6 +26,7 @@ import Cargos from "./pages/Cargos";
 import TrafegoFiliais from "./pages/TrafegoFiliais";
 import ProdutosConsignados from "./pages/ProdutosConsignados";
 import Fornecedores from "./pages/Fornecedores";
+import HistoricoCompras from "./pages/HistoricoCompras";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -63,6 +64,7 @@ const router = createBrowserRouter([
       { path: "/cargos", element: <ProtectedRoute module="admin" action="manage_roles"><Cargos /></ProtectedRoute> },
       { path: "/trafego-filiais", element: <ProtectedRoute module="trafego_filiais" action="view"><TrafegoFiliais /></ProtectedRoute> },
       { path: "/produtos-consignados", element: <ProtectedRoute module="produtos_consignados" action="view"><ProdutosConsignados /></ProtectedRoute> },
+      { path: "/historico-compras", element: <ProtectedRoute module="fornecedores" action="view"><HistoricoCompras /></ProtectedRoute> },
       { path: "*", element: <NotFound /> },
     ],
   },
