@@ -11,7 +11,7 @@ import { useFornecedores } from "@/hooks/useFornecedores";
 import { useHistoricoCompras } from "@/hooks/useHistoricoCompras";
 import { FornecedorFormDialog } from "@/components/FornecedorFormDialog";
 import { FornecedorProdutosDialog } from "@/components/FornecedorProdutosDialog";
-import { FornecedorComprasDialog } from "@/components/FornecedorComprasDialog";
+
 import { NovaCompraDialog } from "@/components/NovaCompraDialog";
 import { CompraDetailDialog } from "@/components/CompraDetailDialog";
 import { supabase } from "@/integrations/supabase/client";
