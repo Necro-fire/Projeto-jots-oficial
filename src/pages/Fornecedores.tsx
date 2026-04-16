@@ -37,7 +37,7 @@ export default function Fornecedores() {
   const [editing, setEditing] = useState<any>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [produtosFornecedor, setProdutosFornecedor] = useState<{ id: string; nome: string; filial_id: string } | null>(null);
-  const [comprasFornecedor, setComprasFornecedor] = useState<{ id: string; nome: string; filial_id: string } | null>(null);
+  const [novaCompraFornecedorId, setNovaCompraFornecedorId] = useState<string | null>(null);
 
   // --- Compras state ---
   const [compraSearch, setCompraSearch] = useState("");
