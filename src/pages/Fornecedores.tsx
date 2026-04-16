@@ -300,8 +300,12 @@ export default function Fornecedores() {
       {/* Dialogs */}
       <FornecedorFormDialog open={showForm} onOpenChange={setShowForm} editing={editing} onSaved={refetch} />
       <FornecedorProdutosDialog open={!!produtosFornecedor} onOpenChange={v => { if (!v) setProdutosFornecedor(null); }} fornecedor={produtosFornecedor} />
-      <FornecedorComprasDialog open={!!comprasFornecedor} onOpenChange={v => { if (!v) setComprasFornecedor(null); }} fornecedor={comprasFornecedor} />
-      <NovaCompraDialog open={showNewCompra} onOpenChange={setShowNewCompra} onSuccess={refetchCompras} />
+      <NovaCompraDialog
+        open={showNewCompra || !!novaCompraFornecedorId}
+        onOpenChange={v => { if (!v) { setShowNewCompra(false); setNovaCompraFornecedorId(null); } }}
+        onSuccess={refetchCompras}
+        fornecedorIdPreset={novaCompraFornecedorId}
+      />
       <CompraDetailDialog open={!!selectedCompra} onOpenChange={v => { if (!v) setSelectedCompra(null); }} compra={selectedCompra} onRefetch={refetchCompras} />
 
       <AlertDialog open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
