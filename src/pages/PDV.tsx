@@ -73,6 +73,10 @@ export default function PDV() {
   const canSell = hasPermission('PDV', 'sell');
   const searchRef = useRef<HTMLInputElement>(null);
   const [pendingFilial, setPendingFilial] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [pendingConsignadoId, setPendingConsignadoId] = useState<string | null>(null);
+  const consignadoLoadedRef = useRef(false);
 
   const { data: products } = useProducts();
   const { data: clients } = useClients();
