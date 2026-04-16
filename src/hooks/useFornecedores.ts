@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFilial } from "@/contexts/FilialContext";
 
@@ -42,40 +42,39 @@ export function useFornecedores() {
   const [data, setData] = useState<Fornecedor[]>([]);
   const [loading, setLoading] = useState(true);
   const { selectedFilial } = useFilial();
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data: rows, error } = await (supabase as any)
+
+    let query = (supabase as any)
       .from("fornecedores")
-      .select("*")
-      .eq("filial_id", selectedFilial)
-      .order("created_at", { ascending: false });
-    if (!error && rows) setData(rows as Fornecedor[]);
+      .select("*");
+
+    if (selectedFilial !== "all") {
+      query = query.eq("filial_id", selectedFilial);
+    }
+
+    const { data: rows, error } = await query.order("created_at", { ascending: false });
+
+    if (!error && rows) {
+      setData(rows as Fornecedor[]);
+    }
+
     setLoading(false);
   }, [selectedFilial]);
 
   useEffect(() => {
     fetchData();
 
-    // Clean up previous channel before creating new one
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
-    const channel = supabase.channel("fornecedores-rt-" + selectedFilial);
-    channel.on("postgres_changes", { event: "*", schema: "public", table: "fornecedores" }, () => {
-      fetchData();
-    });
-    channel.subscribe();
-    channelRef.current = channel;
+    const channel = supabase
+      .channel(`fornecedores-rt-${selectedFilial}-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fornecedores" }, () => {
+        fetchData();
+      })
+      .subscribe();
 
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+      void supabase.removeChannel(channel);
     };
   }, [fetchData, selectedFilial]);
 
@@ -87,17 +86,23 @@ export function useFornecedorProdutos(fornecedorId: string | null) {
   const [loading, setLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
-    if (!fornecedorId) { setData([]); return; }
+    if (!fornecedorId) {
+      setData([]);
+      return;
+    }
+
     setLoading(true);
     const { data: links } = await (supabase as any)
       .from("fornecedor_produtos")
-      .select("*, produtos(id, code, model, category, retail_price, image_url)")
+      .select("*, produtos(id, code, model, category, retail_price, image_url, filial_id)")
       .eq("fornecedor_id", fornecedorId);
     setData(links || []);
     setLoading(false);
   }, [fornecedorId]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return { data, loading, refetch: fetchData };
 }
@@ -107,7 +112,11 @@ export function useComprasFornecedor(fornecedorId: string | null) {
   const [loading, setLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
-    if (!fornecedorId) { setData([]); return; }
+    if (!fornecedorId) {
+      setData([]);
+      return;
+    }
+
     setLoading(true);
     const { data: rows } = await (supabase as any)
       .from("compras_fornecedor")
@@ -118,7 +127,9 @@ export function useComprasFornecedor(fornecedorId: string | null) {
     setLoading(false);
   }, [fornecedorId]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return { data, loading, refetch: fetchData };
 }

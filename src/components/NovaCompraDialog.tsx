@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,10 +41,16 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Product search
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+
+  const selectedFornecedor = useMemo(
+    () => fornecedores.find((fornecedor) => fornecedor.id === fornecedorId) ?? null,
+    [fornecedorId, fornecedores]
+  );
+
+  const compraFilialId = selectedFornecedor?.filial_id ?? (selectedFilial !== "all" ? selectedFilial : null);
 
   useEffect(() => {
     if (!open) {
@@ -60,12 +66,17 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
 
   const searchProducts = async () => {
     if (!searchTerm.trim()) return;
+    if (!compraFilialId) {
+      toast.error("Selecione um fornecedor para definir a filial da compra.");
+      return;
+    }
+
     setSearching(true);
     const term = searchTerm.trim().toUpperCase();
     const { data } = await supabase
       .from("produtos")
       .select("id, code, model, retail_price, custo")
-      .eq("filial_id", selectedFilial)
+      .eq("filial_id", compraFilialId)
       .or(`code.ilike.%${term}%,model.ilike.%${term}%,barcode.ilike.%${term}%`)
       .limit(10);
     setSearchResults(data || []);
@@ -107,13 +118,22 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
   const valorTotal = items.reduce((sum, i) => sum + i.total, 0);
 
   const handleSave = async () => {
-    if (!fornecedorId) { toast.error("Selecione um fornecedor"); return; }
-    if (items.length === 0) { toast.error("Adicione pelo menos um produto"); return; }
+    if (!fornecedorId) {
+      toast.error("Selecione um fornecedor");
+      return;
+    }
+    if (!compraFilialId) {
+      toast.error("Selecione uma filial específica para registrar a compra.");
+      return;
+    }
+    if (items.length === 0) {
+      toast.error("Adicione pelo menos um produto");
+      return;
+    }
     if (!profile) return;
 
     setSaving(true);
     try {
-      // Create the purchase
       const { data: compra, error: compraError } = await (supabase as any)
         .from("compras_fornecedor")
         .insert({
@@ -122,7 +142,7 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
           valor_total: valorTotal,
           data_compra: dataCompra || new Date().toISOString(),
           observacoes,
-          filial_id: selectedFilial,
+          filial_id: compraFilialId,
           usuario_id: profile.id,
           usuario_nome: profile.nome,
         })
@@ -131,7 +151,6 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
 
       if (compraError) throw compraError;
 
-      // Insert items
       const itemsToInsert = items.map(item => ({
         compra_id: compra.id,
         produto_id: item.produto_id,
@@ -167,7 +186,6 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Fornecedor & Data */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Fornecedor *</Label>
@@ -190,13 +208,11 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
             </div>
           </div>
 
-          {/* Descrição */}
           <div>
             <Label>Descrição</Label>
             <Input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descrição da compra..." />
           </div>
 
-          {/* Product search */}
           <div>
             <Label>Adicionar Produto</Label>
             <div className="flex gap-2">
@@ -226,7 +242,6 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
             )}
           </div>
 
-          {/* Items table */}
           {items.length > 0 && (
             <Table>
               <TableHeader>
@@ -272,7 +287,6 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
             </Table>
           )}
 
-          {/* Total & Obs */}
           <div className="flex items-center justify-between border-t pt-3">
             <div>
               <Label>Observações</Label>

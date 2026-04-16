@@ -36,8 +36,8 @@ export default function Fornecedores() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [produtosFornecedor, setProdutosFornecedor] = useState<{ id: string; nome: string } | null>(null);
-  const [comprasFornecedor, setComprasFornecedor] = useState<{ id: string; nome: string } | null>(null);
+  const [produtosFornecedor, setProdutosFornecedor] = useState<{ id: string; nome: string; filial_id: string } | null>(null);
+  const [comprasFornecedor, setComprasFornecedor] = useState<{ id: string; nome: string; filial_id: string } | null>(null);
 
   // --- Compras state ---
   const [compraSearch, setCompraSearch] = useState("");
@@ -177,7 +177,7 @@ export default function Fornecedores() {
                               size="icon"
                               variant="ghost"
                               title="Produtos"
-                              onClick={() => setProdutosFornecedor({ id: f.id, nome: f.nome })}
+                              onClick={() => setProdutosFornecedor({ id: f.id, nome: f.nome, filial_id: f.filial_id })}
                             >
                               <Package className="h-4 w-4" />
                             </Button>
@@ -185,7 +185,7 @@ export default function Fornecedores() {
                               size="icon"
                               variant="ghost"
                               title="Histórico de Compras"
-                              onClick={() => setComprasFornecedor({ id: f.id, nome: f.nome })}
+                              onClick={() => setComprasFornecedor({ id: f.id, nome: f.nome, filial_id: f.filial_id })}
                             >
                               <History className="h-4 w-4" />
                             </Button>

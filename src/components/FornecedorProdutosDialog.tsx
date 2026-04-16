@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useFilial } from "@/contexts/FilialContext";
 import { useFornecedorProdutos } from "@/hooks/useFornecedores";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  fornecedor: { id: string; nome: string } | null;
+  fornecedor: { id: string; nome: string; filial_id: string } | null;
 }
 
 export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Props) {
@@ -21,20 +20,20 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
   const [search, setSearch] = useState("");
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [adding, setAdding] = useState(false);
-  const { selectedFilial } = useFilial();
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !fornecedor) return;
+
     (async () => {
       const { data } = await (supabase as any)
         .from("produtos")
-        .select("id, code, model, category, retail_price")
-        .eq("filial_id", selectedFilial)
+        .select("id, code, model, category, retail_price, filial_id")
+        .eq("filial_id", fornecedor.filial_id)
         .eq("status", "active")
         .order("model");
       setAllProducts(data || []);
     })();
-  }, [open, selectedFilial]);
+  }, [open, fornecedor]);
 
   const linkedIds = useMemo(() => new Set(links.map((l: any) => l.produto_id)), [links]);
 
@@ -52,8 +51,11 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
     const { error } = await (supabase as any)
       .from("fornecedor_produtos")
       .insert({ fornecedor_id: fornecedor.id, produto_id: produtoId });
-    if (error) toast.error("Erro ao vincular");
-    else { toast.success("Produto vinculado"); refetch(); }
+    if (error) toast.error(error.message || "Erro ao vincular");
+    else {
+      toast.success("Produto vinculado");
+      refetch();
+    }
     setAdding(false);
   };
 
@@ -63,7 +65,10 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
       .delete()
       .eq("id", linkId);
     if (error) toast.error("Erro ao desvincular");
-    else { toast.success("Produto desvinculado"); refetch(); }
+    else {
+      toast.success("Produto desvinculado");
+      refetch();
+    }
   };
 
   return (
@@ -73,7 +78,6 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
           <DialogTitle>Produtos de {fornecedor?.nome}</DialogTitle>
         </DialogHeader>
 
-        {/* Linked products */}
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">Produtos vinculados ({links.length})</h4>
           {links.length === 0 ? (
@@ -106,7 +110,6 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
           )}
         </div>
 
-        {/* Add products */}
         <div className="space-y-2 border-t pt-3">
           <h4 className="text-sm font-medium text-muted-foreground">Adicionar produto</h4>
           <div className="relative">

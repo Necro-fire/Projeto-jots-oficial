@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useFilial } from "@/contexts/FilialContext";
 import { useComprasFornecedor } from "@/hooks/useFornecedores";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,7 +15,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  fornecedor: { id: string; nome: string } | null;
+  fornecedor: { id: string; nome: string; filial_id: string } | null;
 }
 
 export function FornecedorComprasDialog({ open, onOpenChange, fornecedor }: Props) {
@@ -25,11 +24,14 @@ export function FornecedorComprasDialog({ open, onOpenChange, fornecedor }: Prop
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ descricao: "", valor_total: 0, data_compra: "", observacoes: "" });
   const { profile } = useAuth();
-  const { selectedFilial } = useFilial();
 
   const handleSave = async () => {
     if (!fornecedor || !profile) return;
-    if (!form.descricao.trim()) { toast.error("Descrição é obrigatória"); return; }
+    if (!form.descricao.trim()) {
+      toast.error("Descrição é obrigatória");
+      return;
+    }
+
     setSaving(true);
     const { error } = await (supabase as any)
       .from("compras_fornecedor")
@@ -39,17 +41,20 @@ export function FornecedorComprasDialog({ open, onOpenChange, fornecedor }: Prop
         valor_total: form.valor_total,
         data_compra: form.data_compra || new Date().toISOString(),
         observacoes: form.observacoes,
-        filial_id: selectedFilial,
+        filial_id: fornecedor.filial_id,
         usuario_id: profile.id,
         usuario_nome: profile.nome,
       });
-    if (error) toast.error("Erro ao registrar compra");
-    else {
+
+    if (error) {
+      toast.error("Erro ao registrar compra");
+    } else {
       toast.success("Compra registrada");
       setForm({ descricao: "", valor_total: 0, data_compra: "", observacoes: "" });
       setShowForm(false);
       refetch();
     }
+
     setSaving(false);
   };
 
