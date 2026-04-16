@@ -33,6 +33,8 @@ export default function Fornecedores() {
 
   // --- Fornecedores state ---
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [cidadeFilter, setCidadeFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
