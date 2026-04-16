@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { createBoletoAlertas } from "@/hooks/useBoletoAlertas";
 import { useFilial } from "@/contexts/FilialContext";
@@ -106,6 +106,7 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const { selectedFilial } = useFilial();
+  const channelRef = useRef<any>(null);
 
   const fetchData = useCallback(async () => {
     let query = (supabase as any).from(table).select("*");
@@ -120,14 +121,25 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
   useEffect(() => {
     fetchData();
 
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    const topic = `${table}-rt-${selectedFilial}-${Date.now()}`;
     const channel = supabase
-      .channel(`${table}-changes`)
+      .channel(topic)
       .on("postgres_changes", { event: "*", schema: "public", table }, () => {
         fetchData();
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    channelRef.current = channel;
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
   }, [fetchData, table]);
 
   return { data, loading, refetch: fetchData };
@@ -338,11 +350,11 @@ export async function createVenda(
     }
   }
 
-  // If consignado, create consignados records
+  // If consignado, create consignados records (stock already deducted by reduce_stock_on_sale trigger)
   if (isConsignado) {
     try {
       for (const item of items) {
-        await (supabase as any).from("consignados").insert({
+        const { data: csg } = await (supabase as any).from("consignados").insert({
           produto_id: item.produto_id,
           cliente_id: clientId,
           filial_id: filialId,
@@ -351,7 +363,23 @@ export async function createVenda(
           valor_total: item.unit_price * item.quantity,
           vendedor_nome: userName || "",
           venda_id: venda.id,
-        });
+        }).select().single();
+
+        // Log creation history
+        if (csg) {
+          await (supabase as any).from("consignado_historico").insert({
+            consignado_id: csg.id,
+            acao: "criado",
+            detalhes: {
+              origem: "pdv",
+              venda_id: venda.id,
+              quantidade: item.quantity,
+              valor_unitario: item.unit_price,
+            },
+            usuario_id: userId,
+            usuario_nome: userName || "",
+          });
+        }
       }
     } catch (e) {
       console.error("Erro ao criar registros de consignação:", e);
