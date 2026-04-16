@@ -322,6 +322,53 @@ export type Database = {
         }
         Relationships: []
       }
+      compras_fornecedor: {
+        Row: {
+          created_at: string
+          data_compra: string
+          descricao: string
+          filial_id: string
+          fornecedor_id: string
+          id: string
+          observacoes: string
+          usuario_id: string
+          usuario_nome: string
+          valor_total: number
+        }
+        Insert: {
+          created_at?: string
+          data_compra?: string
+          descricao?: string
+          filial_id?: string
+          fornecedor_id: string
+          id?: string
+          observacoes?: string
+          usuario_id: string
+          usuario_nome?: string
+          valor_total?: number
+        }
+        Update: {
+          created_at?: string
+          data_compra?: string
+          descricao?: string
+          filial_id?: string
+          fornecedor_id?: string
+          id?: string
+          observacoes?: string
+          usuario_id?: string
+          usuario_nome?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_fornecedor_fornecedor_id_fkey"
+            columns: ["fornecedor_id"]
+            isOneToOne: false
+            referencedRelation: "fornecedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       descontos_atacado: {
         Row: {
           categoria: string
@@ -481,6 +528,90 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fornecedor_produtos: {
+        Row: {
+          created_at: string
+          fornecedor_id: string
+          id: string
+          produto_id: string
+        }
+        Insert: {
+          created_at?: string
+          fornecedor_id: string
+          id?: string
+          produto_id: string
+        }
+        Update: {
+          created_at?: string
+          fornecedor_id?: string
+          id?: string
+          produto_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fornecedor_produtos_fornecedor_id_fkey"
+            columns: ["fornecedor_id"]
+            isOneToOne: false
+            referencedRelation: "fornecedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fornecedor_produtos_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fornecedores: {
+        Row: {
+          cidade: string
+          cnpj_cpf: string
+          codigo: string
+          created_at: string
+          email: string
+          endereco: string
+          estado: string
+          filial_id: string
+          id: string
+          nome: string
+          observacoes: string
+          status: string
+          telefone: string
+        }
+        Insert: {
+          cidade?: string
+          cnpj_cpf?: string
+          codigo?: string
+          created_at?: string
+          email?: string
+          endereco?: string
+          estado?: string
+          filial_id?: string
+          id?: string
+          nome: string
+          observacoes?: string
+          status?: string
+          telefone?: string
+        }
+        Update: {
+          cidade?: string
+          cnpj_cpf?: string
+          codigo?: string
+          created_at?: string
+          email?: string
+          endereco?: string
+          estado?: string
+          filial_id?: string
+          id?: string
+          nome?: string
+          observacoes?: string
+          status?: string
+          telefone?: string
+        }
+        Relationships: []
       }
       funcionarios_auth: {
         Row: {
@@ -1190,6 +1321,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      generate_fornecedor_code: { Args: never; Returns: string }
       generate_product_codes: { Args: never; Returns: Json }
       get_profiles_count: { Args: never; Returns: number }
       get_user_permissions: {
