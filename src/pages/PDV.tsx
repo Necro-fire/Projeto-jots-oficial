@@ -372,7 +372,28 @@ export default function PDV() {
       const result = await createVenda(items, selectedClient, client?.store_name || "", finalMethod, saleOrigin, filialId, saleDiscount, user?.id, profile?.nome || user?.email || "", splits);
 
       toast.success(`Venda finalizada! ${result.sale_code || '#' + result.number} — Total: R$ ${saleTotal.toFixed(2)}`);
-      
+
+      // If sale originated from a consignado, mark it as sold and link to venda
+      if (pendingConsignadoId) {
+        try {
+          await (supabase as any)
+            .from("consignados")
+            .update({ status: "vendido", venda_id: result.id })
+            .eq("id", pendingConsignadoId);
+          await (supabase as any).from("consignado_historico").insert({
+            consignado_id: pendingConsignadoId,
+            acao: "venda_pdv",
+            detalhes: { venda_id: result.id, sale_code: result.sale_code },
+            usuario_id: user?.id,
+            usuario_nome: profile?.nome || "",
+          });
+        } catch (e) {
+          console.error("Erro ao marcar consignado como vendido:", e);
+        }
+        setPendingConsignadoId(null);
+        consignadoLoadedRef.current = false;
+      }
+
       // Build cupom and show dialog
       try {
         const cupom = await buildCupomFromVendaId(result.id);
