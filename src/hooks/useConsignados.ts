@@ -34,6 +34,8 @@ export interface ConsignadoHistorico {
   created_at: string;
 }
 
+let consignadoChannelCounter = 0;
+
 export function useConsignados() {
   const { selectedFilial } = useFilial();
   const [data, setData] = useState<Consignado[]>([]);
@@ -76,9 +78,10 @@ export function useConsignados() {
 
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
-    const topic = `consignados-rt-${selectedFilial}-${Date.now()}`;
+    const topic = `consignados-rt-${++consignadoChannelCounter}`;
     const channel = supabase
       .channel(topic)
       .on("postgres_changes", { event: "*", schema: "public", table: "consignados" }, () => fetch())
