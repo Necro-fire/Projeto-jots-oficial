@@ -27,9 +27,10 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSuccess: () => void;
+  fornecedorIdPreset?: string | null;
 }
 
-export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
+export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPreset }: Props) {
   const { profile } = useAuth();
   const { selectedFilial } = useFilial();
   const { data: fornecedores } = useFornecedores();
