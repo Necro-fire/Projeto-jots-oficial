@@ -16,7 +16,7 @@ import type { DbProduct } from "@/hooks/useSupabaseData";
 import { generateProductCodes, findProductByHash, upsertEstoque } from "@/hooks/useSupabaseData";
 
 import { generateProductHash } from "@/lib/productHash";
-import { shouldHaveFooter, renderImageWithFooter } from "@/lib/productImageFooter";
+import { shouldHaveFooter, renderImageWithFooter, renderImageWithoutFooter } from "@/lib/productImageFooter";
 import {
   CLASSIFICACOES, CATEGORIAS_IDADE, GENEROS, ESTILOS, TODAS_CORES, CORES_SOLIDAS,
   MATERIAIS_ARO, MATERIAIS_HASTE, TIPOS_LENTE, CORES_LENTE_CLIPON,
@@ -263,26 +263,36 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setImageFile(null);
+    setImagePreview(null);
     setImageFile(file);
+
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result as string);
     reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   const uploadImage = async (file: File, productName?: string, footerClass?: string, measures?: { haste?: number; lente?: number; ponte?: number }): Promise<string> => {
     let uploadFile: File | Blob = file;
     let ext = file.name.split(".").pop() || "jpg";
+    const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
 
-    // Bake footer into image for applicable categories
-    if (shouldHaveFooter(classificacaoProduto)) {
-      const objectUrl = URL.createObjectURL(file);
-      try {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      // Always sanitize the selected image first so no previous footer is ever reused.
+      if (shouldHaveFooter(classificacaoProduto)) {
         const blob = await renderImageWithFooter(objectUrl, productName, footerClass || "", measures);
         uploadFile = blob;
         ext = "jpg";
-      } finally {
-        URL.revokeObjectURL(objectUrl);
+      } else {
+        const cleanBlob = await renderImageWithoutFooter(objectUrl, mimeType);
+        uploadFile = cleanBlob;
+        ext = mimeType === "image/png" ? "png" : "jpg";
       }
+    } finally {
+      URL.revokeObjectURL(objectUrl);
     }
 
     const path = `${crypto.randomUUID()}.${ext}`;

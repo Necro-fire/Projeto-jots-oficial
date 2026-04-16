@@ -39,26 +39,7 @@ export async function renderImageWithFooter(
   classificacao?: string,
   measures?: { haste?: number; lente?: number; ponte?: number },
 ): Promise<Blob> {
-  const img = await loadImage(imageUrl);
-  const srcW = img.naturalWidth;
-  const srcH = img.naturalHeight;
-
-  const detectCanvas = document.createElement("canvas");
-  detectCanvas.width = srcW;
-  detectCanvas.height = srcH;
-  const detectCtx = detectCanvas.getContext("2d");
-  if (!detectCtx) throw new Error("Canvas context unavailable");
-  detectCtx.drawImage(img, 0, 0);
-
-  const cropH = detectExistingFooterHeight(detectCtx, srcW, srcH);
-  const cleanH = Math.max(1, srcH - cropH);
-
-  const cleanCanvas = document.createElement("canvas");
-  cleanCanvas.width = srcW;
-  cleanCanvas.height = cleanH;
-  const cleanCtx = cleanCanvas.getContext("2d");
-  if (!cleanCtx) throw new Error("Canvas context unavailable");
-  cleanCtx.drawImage(img, 0, 0, srcW, cleanH, 0, 0, srcW, cleanH);
+  const { canvas: cleanCanvas, width: srcW, height: cleanH } = await prepareCleanImageCanvas(imageUrl);
 
   const footerH = getFooterHeight(cleanH);
   const finalCanvas = document.createElement("canvas");
@@ -107,13 +88,42 @@ export async function renderImageWithFooter(
     finalCtx.fillText(line2Text, pad, nameText ? footerY + footerH * 0.7 : footerY + footerH * 0.5);
   }
 
-  return new Promise((resolve, reject) => {
-    finalCanvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))),
-      "image/jpeg",
-      0.92,
-    );
-  });
+  return canvasToBlob(finalCanvas, "image/jpeg", 0.92);
+}
+
+export async function renderImageWithoutFooter(
+  imageUrl: string,
+  mimeType: "image/jpeg" | "image/png" = "image/jpeg",
+): Promise<Blob> {
+  const { canvas } = await prepareCleanImageCanvas(imageUrl);
+  return canvasToBlob(canvas, mimeType, mimeType === "image/jpeg" ? 0.92 : undefined);
+}
+
+async function prepareCleanImageCanvas(
+  imageUrl: string,
+): Promise<{ canvas: HTMLCanvasElement; width: number; height: number }> {
+  const img = await loadImage(imageUrl);
+  const srcW = img.naturalWidth;
+  const srcH = img.naturalHeight;
+
+  const detectCanvas = document.createElement("canvas");
+  detectCanvas.width = srcW;
+  detectCanvas.height = srcH;
+  const detectCtx = detectCanvas.getContext("2d");
+  if (!detectCtx) throw new Error("Canvas context unavailable");
+  detectCtx.drawImage(img, 0, 0);
+
+  const cropH = detectExistingFooterHeight(detectCtx, srcW, srcH);
+  const cleanH = Math.max(1, srcH - cropH);
+
+  const cleanCanvas = document.createElement("canvas");
+  cleanCanvas.width = srcW;
+  cleanCanvas.height = cleanH;
+  const cleanCtx = cleanCanvas.getContext("2d");
+  if (!cleanCtx) throw new Error("Canvas context unavailable");
+  cleanCtx.drawImage(img, 0, 0, srcW, cleanH, 0, 0, srcW, cleanH);
+
+  return { canvas: cleanCanvas, width: srcW, height: cleanH };
 }
 
 function getFooterHeight(imageHeight: number): number {
@@ -305,6 +315,20 @@ function average(values: number[]): number {
 
 function getLuma(r: number, g: number, b: number): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  mimeType: "image/jpeg" | "image/png",
+  quality?: number,
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))),
+      mimeType,
+      quality,
+    );
+  });
 }
 
 function loadImage(url: string): Promise<HTMLImageElement> {

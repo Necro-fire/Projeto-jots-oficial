@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { shouldHaveFooter } from "@/lib/productImageFooter";
 
 interface ProductImageDialogProps {
   open: boolean;
@@ -21,19 +20,16 @@ export function ProductImageDialog({
   onOpenChange,
   imageUrl,
   productName,
-  category,
-  classificacao,
-  haste,
-  lente,
-  ponte,
 }: ProductImageDialogProps) {
   const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    setZoom(1);
+  }, [imageUrl, open]);
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 0.5, 4));
   const handleZoomOut = () => setZoom((z) => Math.max(z - 0.5, 0.5));
   const handleReset = () => setZoom(1);
-
-  const showFooter = !!(category && shouldHaveFooter(category));
 
 
   return (
@@ -63,20 +59,12 @@ export function ProductImageDialog({
           </div>
         </div>
         <div className="overflow-auto max-h-[70vh] flex items-center justify-center bg-secondary rounded-md relative">
-          <div className="relative inline-block" style={{ transform: `scale(${zoom})`, transformOrigin: "center center", transition: "transform 0.2s" }}>
+          <div key={imageUrl} className="relative inline-block" style={{ transform: `scale(${zoom})`, transformOrigin: "center center", transition: "transform 0.2s" }}>
             <img
               src={imageUrl}
               alt={productName}
               draggable={false}
             />
-            {showFooter && (
-              <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-4 py-2 flex flex-col gap-0.5">
-                <span className="text-white text-xs font-semibold leading-tight">{productName}</span>
-                <span className="text-white/90 text-[11px] font-medium leading-tight">
-                  {[classificacao, [haste && `Haste: ${haste}`, lente && `Lente: ${lente}`, ponte && `Ponte: ${ponte}`].filter(Boolean).join("  ")].filter(Boolean).join("   |   ")}
-                </span>
-              </div>
-            )}
           </div>
         </div>
       </DialogContent>
