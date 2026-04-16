@@ -43,7 +43,9 @@ export default function Clientes() {
       (c) =>
         !search ||
         c.responsible_name.toLowerCase().includes(q) ||
+        c.store_name.toLowerCase().includes(q) ||
         c.cnpj.includes(search) ||
+        c.cpf.includes(search) ||
         c.phone.includes(search)
     );
   }, [clients, search]);

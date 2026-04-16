@@ -54,7 +54,7 @@ export function useFornecedores() {
       query = query.eq("filial_id", selectedFilial);
     }
 
-    const { data: rows, error } = await query.order("created_at", { ascending: false });
+    const { data: rows, error } = await query.order("nome", { ascending: true });
 
     if (!error && rows) {
       setData(rows as Fornecedor[]);

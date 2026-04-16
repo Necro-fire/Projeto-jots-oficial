@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useFilial } from "@/contexts/FilialContext";
 import { toast } from "sonner";
+import { maskCpfCnpj, maskCelular, maskPhone, ESTADOS_BR } from "@/lib/masks";
 
 interface Props {
   open: boolean;
@@ -92,11 +94,11 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>CNPJ/CPF</Label>
-              <Input value={form.cnpj_cpf} onChange={e => setForm(f => ({ ...f, cnpj_cpf: e.target.value }))} />
+              <Input value={form.cnpj_cpf} onChange={e => setForm(f => ({ ...f, cnpj_cpf: maskCpfCnpj(e.target.value) }))} placeholder="000.000.000-00" />
             </div>
             <div>
               <Label>Telefone</Label>
-              <Input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} />
+              <Input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: maskCelular(e.target.value) }))} placeholder="(00) 0 0000-0000" />
             </div>
           </div>
           <div>
@@ -113,8 +115,15 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
               <Input value={form.cidade} onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))} />
             </div>
             <div>
-              <Label>Estado</Label>
-              <Input value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))} />
+              <Label>Estado (UF)</Label>
+              <Select value={form.estado} onValueChange={v => setForm(f => ({ ...f, estado: v }))}>
+                <SelectTrigger><SelectValue placeholder="UF" /></SelectTrigger>
+                <SelectContent>
+                  {ESTADOS_BR.map(uf => (
+                    <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div>
