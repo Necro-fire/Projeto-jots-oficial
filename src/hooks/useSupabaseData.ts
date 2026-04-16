@@ -338,6 +338,26 @@ export async function createVenda(
     }
   }
 
+  // If consignado, create consignados records
+  if (isConsignado) {
+    try {
+      for (const item of items) {
+        await (supabase as any).from("consignados").insert({
+          produto_id: item.produto_id,
+          cliente_id: clientId,
+          filial_id: filialId,
+          quantidade: item.quantity,
+          valor_unitario: item.unit_price,
+          valor_total: item.unit_price * item.quantity,
+          vendedor_nome: userName || "",
+          venda_id: venda.id,
+        });
+      }
+    } catch (e) {
+      console.error("Erro ao criar registros de consignação:", e);
+    }
+  }
+
   // Auto-create boleto alerts
   try {
     // Check main payment method

@@ -1,12 +1,18 @@
 import { useState, useMemo } from "react";
-import { Package, RotateCcw, X, CheckCircle2 } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useFilial } from "@/contexts/FilialContext";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FilialSelector } from "@/components/FilialSelector";
-import { supabase } from "@/integrations/supabase/client";
+import { useConsignados, updateConsignadoStatus, type Consignado } from "@/hooks/useConsignados";
+import { useAuth } from "@/contexts/AuthContext";
+import { useFilial } from "@/contexts/FilialContext";
 import { toast } from "sonner";
-import { useEffect, useCallback } from "react";
+import { ConsignadoDashboard } from "@/components/consignados/ConsignadoDashboard";
+import { ConsignadoList } from "@/components/consignados/ConsignadoList";
+import { NovoConsignadoDialog } from "@/components/consignados/NovoConsignadoDialog";
+import { ConsignadoHistoricoDialog } from "@/components/consignados/ConsignadoHistoricoDialog";
+import { ConsignadoTrocaDialog } from "@/components/consignados/ConsignadoTrocaDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,249 +24,142 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface ConsignedItem {
-  id: string;
-  venda_id: string;
-  venda_number: number;
-  client_name: string;
-  produto_id: string;
-  product_code: string;
-  product_model: string;
-  quantity: number;
-  unit_price: number;
-  total: number;
-  created_at: string;
-  status_consignado: "consignado" | "retornou" | "nao_retornou";
-}
-
 export default function ProdutosConsignados() {
+  const { data: items, loading } = useConsignados();
+  const { user, profile } = useAuth();
   const { selectedFilial } = useFilial();
-  const [items, setItems] = useState<ConsignedItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [confirmAction, setConfirmAction] = useState<{ item: ConsignedItem; action: "retornou" | "nao_retornou" } | null>(null);
 
-  const fetchConsigned = useCallback(async () => {
-    setLoading(true);
-    let query = (supabase as any)
-      .from("venda_items")
-      .select("*, vendas!inner(number, client_name, filial_id, origin, created_at)")
-      .eq("vendas.origin", "consignado");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showNovo, setShowNovo] = useState(false);
+  const [historicoItem, setHistoricoItem] = useState<Consignado | null>(null);
+  const [trocaItem, setTrocaItem] = useState<Consignado | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ item: Consignado; action: "vendido" | "devolvido" } | null>(null);
 
-    if (selectedFilial !== "all") {
-      query = query.eq("vendas.filial_id", selectedFilial);
+  const filtered = useMemo(() => {
+    let result = items;
+    if (statusFilter !== "all") {
+      result = result.filter(i => i.status === statusFilter);
     }
-
-    const { data, error } = await query;
-    if (error) {
-      console.error(error);
-      setLoading(false);
-      return;
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(i =>
+        i.codigo.toLowerCase().includes(q) ||
+        (i.produto_referencia || "").toLowerCase().includes(q) ||
+        (i.produto_code || "").toLowerCase().includes(q) ||
+        (i.produto_model || "").toLowerCase().includes(q) ||
+        (i.cliente_nome || "").toLowerCase().includes(q) ||
+        (i.cliente_loja || "").toLowerCase().includes(q)
+      );
     }
+    return result;
+  }, [items, search, statusFilter]);
 
-    const mapped: ConsignedItem[] = (data || []).map((row: any) => ({
-      id: row.id,
-      venda_id: row.venda_id,
-      venda_number: row.vendas?.number || 0,
-      client_name: row.vendas?.client_name || "",
-      produto_id: row.produto_id,
-      product_code: row.product_code,
-      product_model: row.product_model,
-      quantity: row.quantity,
-      unit_price: row.unit_price,
-      total: row.total,
-      created_at: row.vendas?.created_at || row.created_at || "",
-      status_consignado: row.status === "consignado_retornou"
-        ? "retornou"
-        : row.status === "consignado_nao_retornou"
-          ? "nao_retornou"
-          : "consignado",
-    }));
-
-    setItems(mapped);
-    setLoading(false);
-  }, [selectedFilial]);
-
-  useEffect(() => {
-    fetchConsigned();
-    const channel = supabase
-      .channel("consignados-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "venda_items" }, () => fetchConsigned())
-      .on("postgres_changes", { event: "*", schema: "public", table: "vendas" }, () => fetchConsigned())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchConsigned]);
-
-  const handleAction = async () => {
+  const handleConfirmAction = async () => {
     if (!confirmAction) return;
     const { item, action } = confirmAction;
-
     try {
-      if (action === "retornou") {
-        // Mark as returned and restore stock
-        await (supabase as any)
-          .from("venda_items")
-          .update({ status: "consignado_retornou" })
-          .eq("id", item.id);
-
-        // Restore stock
-        const { data: venda } = await (supabase as any)
-          .from("vendas")
-          .select("filial_id")
-          .eq("id", item.venda_id)
-          .single();
-
-        if (venda) {
-          const { data: estoque } = await (supabase as any)
-            .from("estoque")
-            .select("id, quantidade")
-            .eq("produto_id", item.produto_id)
-            .eq("filial_id", venda.filial_id)
-            .maybeSingle();
-
-          if (estoque) {
-            const newQty = estoque.quantidade + item.quantity;
-            await (supabase as any).from("estoque").update({ quantidade: newQty }).eq("id", estoque.id);
-            await (supabase as any).from("produtos").update({ stock: newQty }).eq("id", item.produto_id);
-          } else {
-            await (supabase as any).from("estoque").insert({
-              produto_id: item.produto_id,
-              filial_id: venda.filial_id,
-              quantidade: item.quantity,
-            });
-            await (supabase as any).from("produtos").update({ stock: item.quantity }).eq("id", item.produto_id);
-          }
-        }
-
-        toast.success("Produto marcado como retornado e estoque atualizado!");
-      } else {
-        await (supabase as any)
-          .from("venda_items")
-          .update({ status: "consignado_nao_retornou" })
-          .eq("id", item.id);
-        toast.success("Produto marcado como não retornado.");
-      }
-
+      await updateConsignadoStatus(item.id, action, {
+        usuario_id: user?.id || "",
+        usuario_nome: profile?.nome || "",
+        filial_id: item.filial_id,
+        produto_id: item.produto_id,
+        quantidade: item.quantidade,
+      });
+      toast.success(action === "vendido" ? "Marcado como vendido!" : "Produto devolvido ao estoque!");
       setConfirmAction(null);
-      fetchConsigned();
     } catch (err: any) {
-      toast.error(err.message || "Erro ao atualizar status");
+      toast.error(err.message || "Erro ao atualizar");
       setConfirmAction(null);
     }
   };
-
-  const pending = items.filter(i => i.status_consignado === "consignado");
-  const resolved = items.filter(i => i.status_consignado !== "consignado");
 
   return (
     <div>
       <FilialSelector />
       <div className="p-4 space-y-4">
-        <div>
-          <h1 className="text-title font-semibold tracking-tighter">Produtos Consignados</h1>
-          <p className="text-ui text-muted-foreground">{pending.length} pendentes · {resolved.length} resolvidos</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-title font-semibold tracking-tighter">Produtos Consignados</h1>
+            <p className="text-ui text-muted-foreground">{items.length} registros</p>
+          </div>
+          <Button onClick={() => setShowNovo(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Novo Consignado
+          </Button>
+        </div>
+
+        <ConsignadoDashboard items={items} />
+
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por código, produto, cliente..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              <SelectItem value="consignado">Consignado</SelectItem>
+              <SelectItem value="vendido">Vendido</SelectItem>
+              <SelectItem value="devolvido">Devolvido</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {loading ? (
           <p className="text-muted-foreground text-center py-8">Carregando...</p>
-        ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <Package className="h-12 w-12 mb-3 opacity-30" />
-            <p className="text-ui font-medium">Nenhum produto consignado</p>
-            <p className="text-caption mt-1">Produtos consignados aparecerão aqui</p>
-          </div>
         ) : (
-          <div className="space-y-6">
-            {pending.length > 0 && (
-              <div className="space-y-2">
-                <h2 className="text-ui font-semibold">Pendentes</h2>
-                <div className="space-y-2">
-                  {pending.map(item => (
-                    <div key={item.id} className="rounded-lg border bg-card p-3 flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-ui font-medium">{item.product_code}</span>
-                          <Badge variant="outline" className="text-caption">Venda #{item.venda_number}</Badge>
-                        </div>
-                        <p className="text-caption text-muted-foreground">{item.product_model} · {item.client_name}</p>
-                        <p className="text-caption text-muted-foreground">
-                          {item.quantity} un. · R$ {Number(item.total).toFixed(2)} · {new Date(item.created_at).toLocaleDateString("pt-BR")}
-                        </p>
-                      </div>
-                      <div className="flex gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1 text-emerald-600 border-emerald-300 hover:bg-emerald-50"
-                          onClick={() => setConfirmAction({ item, action: "retornou" })}
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Retornou
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
-                          onClick={() => setConfirmAction({ item, action: "nao_retornou" })}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                          Não retornou
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {resolved.length > 0 && (
-              <div className="space-y-2">
-                <h2 className="text-ui font-semibold">Resolvidos</h2>
-                <div className="space-y-2">
-                  {resolved.map(item => (
-                    <div key={item.id} className="rounded-lg border bg-card p-3 flex items-center justify-between gap-3 opacity-70">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-ui font-medium">{item.product_code}</span>
-                          <Badge variant="outline" className="text-caption">Venda #{item.venda_number}</Badge>
-                        </div>
-                        <p className="text-caption text-muted-foreground">{item.product_model} · {item.client_name}</p>
-                      </div>
-                      <Badge variant={item.status_consignado === "retornou" ? "secondary" : "destructive"} className="text-caption">
-                        {item.status_consignado === "retornou" ? (
-                          <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Retornou</span>
-                        ) : (
-                          "Não retornou"
-                        )}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <ConsignadoList
+            items={filtered}
+            onMarkVendido={item => setConfirmAction({ item, action: "vendido" })}
+            onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
+            onTrocar={item => setTrocaItem(item)}
+            onHistorico={item => setHistoricoItem(item)}
+          />
         )}
-
-        <AlertDialog open={!!confirmAction} onOpenChange={(o) => { if (!o) setConfirmAction(null); }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {confirmAction?.action === "retornou" ? "Confirmar retorno?" : "Confirmar não retorno?"}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {confirmAction?.action === "retornou"
-                  ? `O produto "${confirmAction.item.product_code}" será marcado como retornado e o estoque será restaurado automaticamente.`
-                  : `O produto "${confirmAction?.item.product_code}" será marcado como não retornado. O estoque NÃO será alterado.`}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleAction}>
-                Confirmar
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
+
+      <NovoConsignadoDialog open={showNovo} onOpenChange={setShowNovo} />
+
+      <ConsignadoHistoricoDialog
+        open={!!historicoItem}
+        onOpenChange={o => { if (!o) setHistoricoItem(null); }}
+        consignadoId={historicoItem?.id || ""}
+        consignadoCodigo={historicoItem?.codigo || ""}
+      />
+
+      <ConsignadoTrocaDialog
+        open={!!trocaItem}
+        onOpenChange={o => { if (!o) setTrocaItem(null); }}
+        item={trocaItem}
+      />
+
+      <AlertDialog open={!!confirmAction} onOpenChange={o => { if (!o) setConfirmAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction?.action === "vendido" ? "Confirmar venda?" : "Confirmar devolução?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.action === "vendido"
+                ? `O item "${confirmAction.item.codigo}" será marcado como vendido.`
+                : `O item "${confirmAction?.item.codigo}" será devolvido e o estoque restaurado.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmAction}>Confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
