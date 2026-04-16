@@ -240,11 +240,6 @@ export default function Fornecedores() {
                 <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" />
                 <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" />
               </div>
-              {canCreateCompra && (
-                <Button onClick={() => setShowNewCompra(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Nova Compra
-                </Button>
-              )}
             </div>
 
             <div className="flex gap-4">
