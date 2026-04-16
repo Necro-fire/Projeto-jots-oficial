@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Truck, Search, Plus, Pencil, Trash2, Package, History, Eye, Receipt } from "lucide-react";
+import { Truck, Search, Plus, Pencil, Trash2, Package, ShoppingCart, Eye, Receipt } from "lucide-react";
 import { FilialSelector } from "@/components/FilialSelector";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { useFornecedores } from "@/hooks/useFornecedores";
 import { useHistoricoCompras } from "@/hooks/useHistoricoCompras";
 import { FornecedorFormDialog } from "@/components/FornecedorFormDialog";
 import { FornecedorProdutosDialog } from "@/components/FornecedorProdutosDialog";
-import { FornecedorComprasDialog } from "@/components/FornecedorComprasDialog";
+
 import { NovaCompraDialog } from "@/components/NovaCompraDialog";
 import { CompraDetailDialog } from "@/components/CompraDetailDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +37,7 @@ export default function Fornecedores() {
   const [editing, setEditing] = useState<any>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [produtosFornecedor, setProdutosFornecedor] = useState<{ id: string; nome: string; filial_id: string } | null>(null);
-  const [comprasFornecedor, setComprasFornecedor] = useState<{ id: string; nome: string; filial_id: string } | null>(null);
+  const [novaCompraFornecedorId, setNovaCompraFornecedorId] = useState<string | null>(null);
 
   // --- Compras state ---
   const [compraSearch, setCompraSearch] = useState("");
@@ -184,10 +184,10 @@ export default function Fornecedores() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              title="Histórico de Compras"
-                              onClick={() => setComprasFornecedor({ id: f.id, nome: f.nome, filial_id: f.filial_id })}
+                              title="Nova Compra"
+                              onClick={() => setNovaCompraFornecedorId(f.id)}
                             >
-                              <History className="h-4 w-4" />
+                              <ShoppingCart className="h-4 w-4" />
                             </Button>
                             {canEdit && (
                               <Button size="icon" variant="ghost" title="Editar" onClick={() => handleEdit(f)}>
@@ -240,11 +240,6 @@ export default function Fornecedores() {
                 <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" />
                 <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" />
               </div>
-              {canCreateCompra && (
-                <Button onClick={() => setShowNewCompra(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Nova Compra
-                </Button>
-              )}
             </div>
 
             <div className="flex gap-4">
@@ -305,8 +300,12 @@ export default function Fornecedores() {
       {/* Dialogs */}
       <FornecedorFormDialog open={showForm} onOpenChange={setShowForm} editing={editing} onSaved={refetch} />
       <FornecedorProdutosDialog open={!!produtosFornecedor} onOpenChange={v => { if (!v) setProdutosFornecedor(null); }} fornecedor={produtosFornecedor} />
-      <FornecedorComprasDialog open={!!comprasFornecedor} onOpenChange={v => { if (!v) setComprasFornecedor(null); }} fornecedor={comprasFornecedor} />
-      <NovaCompraDialog open={showNewCompra} onOpenChange={setShowNewCompra} onSuccess={refetchCompras} />
+      <NovaCompraDialog
+        open={showNewCompra || !!novaCompraFornecedorId}
+        onOpenChange={v => { if (!v) { setShowNewCompra(false); setNovaCompraFornecedorId(null); } }}
+        onSuccess={refetchCompras}
+        fornecedorIdPreset={novaCompraFornecedorId}
+      />
       <CompraDetailDialog open={!!selectedCompra} onOpenChange={v => { if (!v) setSelectedCompra(null); }} compra={selectedCompra} onRefetch={refetchCompras} />
 
       <AlertDialog open={!!deletingId} onOpenChange={() => setDeletingId(null)}>

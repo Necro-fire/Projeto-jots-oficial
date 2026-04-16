@@ -27,9 +27,10 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSuccess: () => void;
+  fornecedorIdPreset?: string | null;
 }
 
-export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
+export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPreset }: Props) {
   const { profile } = useAuth();
   const { selectedFilial } = useFilial();
   const { data: fornecedores } = useFornecedores();
@@ -61,8 +62,10 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess }: Props) {
       setItems([]);
       setSearchTerm("");
       setSearchResults([]);
+    } else if (fornecedorIdPreset) {
+      setFornecedorId(fornecedorIdPreset);
     }
-  }, [open]);
+  }, [open, fornecedorIdPreset]);
 
   const searchProducts = async () => {
     if (!searchTerm.trim()) return;
