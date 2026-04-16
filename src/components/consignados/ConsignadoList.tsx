@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, RotateCcw, ArrowLeftRight, History } from "lucide-react";
+import { ShoppingCart, RotateCcw, ArrowLeftRight, History, Pencil, Trash2 } from "lucide-react";
 import type { Consignado } from "@/hooks/useConsignados";
 
 interface Props {
@@ -9,6 +9,8 @@ interface Props {
   onMarkDevolvido: (item: Consignado) => void;
   onTrocar: (item: Consignado) => void;
   onHistorico: (item: Consignado) => void;
+  onEdit?: (item: Consignado) => void;
+  onDelete?: (item: Consignado) => void;
 }
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -17,7 +19,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   devolvido: { label: "Devolvido", variant: "secondary" },
 };
 
-export function ConsignadoList({ items, onMarkVendido, onMarkDevolvido, onTrocar, onHistorico }: Props) {
+export function ConsignadoList({ items, onMarkVendido, onMarkDevolvido, onTrocar, onHistorico, onEdit, onDelete }: Props) {
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -55,6 +57,16 @@ export function ConsignadoList({ items, onMarkVendido, onMarkDevolvido, onTrocar
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onHistorico(item)} title="Histórico">
                 <History className="h-3.5 w-3.5" />
               </Button>
+              {isActive && onEdit && (
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(item)} title="Editar">
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {onDelete && (
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onDelete(item)} title="Excluir">
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              )}
               {isActive && (
                 <>
                   <Button
