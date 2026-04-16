@@ -251,7 +251,9 @@ function detectFooterBandStartFromMetrics(
 ): number | null {
   if (metrics.length === 0) return null;
 
-  const minFooterHeight = Math.min(imageHeight - 1, getFooterHeight(imageHeight));
+  // Use a lenient minimum for detection so we can catch legacy footers that may
+  // have been generated with a smaller ratio.
+  const minFooterHeight = Math.min(imageHeight - 1, Math.round(imageHeight * 0.08));
   const minBandRows = Math.max(18, Math.round(minFooterHeight * 0.55));
   const bottomWindow = metrics.slice(-Math.min(metrics.length, 12));
   const bottomDarkRatio = average(bottomWindow.map((row) => row.darkRatio));
