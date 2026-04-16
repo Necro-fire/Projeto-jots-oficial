@@ -56,11 +56,11 @@ export function useFornecedores() {
   useEffect(() => {
     fetchData();
     const channel = supabase
-      .channel("fornecedores-changes")
+      .channel("fornecedores-changes-" + selectedFilial)
       .on("postgres_changes", { event: "*", schema: "public", table: "fornecedores" }, () => {
         fetchData();
-      })
-      .subscribe();
+      });
+    channel.subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
