@@ -41,6 +41,8 @@ export function EditConsignadoDialog({ open, onOpenChange, item }: Props) {
     setSubmitting(true);
     try {
       const valor_total = quantidade * Number(item.valor_unitario);
+      const qtdDiff = quantidade - item.quantidade; // positive = more taken, negative = some returned
+
       const { error } = await (supabase as any)
         .from("consignados")
         .update({
@@ -53,11 +55,27 @@ export function EditConsignadoDialog({ open, onOpenChange, item }: Props) {
 
       if (error) throw error;
 
+      // Adjust stock if quantity changed and item is still consignado
+      if (qtdDiff !== 0 && item.status === "consignado") {
+        const { data: estoque } = await (supabase as any)
+          .from("estoque")
+          .select("id, quantidade")
+          .eq("produto_id", item.produto_id)
+          .eq("filial_id", item.filial_id)
+          .maybeSingle();
+
+        if (estoque) {
+          const newQty = Math.max(0, estoque.quantidade - qtdDiff);
+          await (supabase as any).from("estoque").update({ quantidade: newQty }).eq("id", estoque.id);
+          await (supabase as any).from("produtos").update({ stock: newQty }).eq("id", item.produto_id);
+        }
+      }
+
       // Log history
       await (supabase as any).from("consignado_historico").insert({
         consignado_id: item.id,
         acao: "editado",
-        detalhes: { quantidade, observacoes },
+        detalhes: { quantidade, observacoes, quantidade_anterior: item.quantidade },
         usuario_id: user?.id || null,
         usuario_nome: profile?.nome || "",
       });
