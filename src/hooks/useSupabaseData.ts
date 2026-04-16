@@ -106,6 +106,7 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const { selectedFilial } = useFilial();
+  const channelRef = useRef<any>(null);
 
   const fetchData = useCallback(async () => {
     let query = (supabase as any).from(table).select("*");
@@ -120,14 +121,25 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
   useEffect(() => {
     fetchData();
 
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    const topic = `${table}-rt-${selectedFilial}-${Date.now()}`;
     const channel = supabase
-      .channel(`${table}-changes`)
+      .channel(topic)
       .on("postgres_changes", { event: "*", schema: "public", table }, () => {
         fetchData();
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    channelRef.current = channel;
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
   }, [fetchData, table]);
 
   return { data, loading, refetch: fetchData };
