@@ -102,6 +102,8 @@ export interface DbEstoque {
   created_at: string;
 }
 
+let channelCounter = 0;
+
 function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,9 +125,10 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
 
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
-    const topic = `${table}-rt-${selectedFilial}-${Date.now()}`;
+    const topic = `${table}-rt-${++channelCounter}`;
     const channel = supabase
       .channel(topic)
       .on("postgres_changes", { event: "*", schema: "public", table }, () => {
