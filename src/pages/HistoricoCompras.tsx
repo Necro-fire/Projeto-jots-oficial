@@ -148,7 +148,7 @@ export default function HistoricoCompras() {
       )}
 
       <NovaCompraDialog open={showNew} onOpenChange={setShowNew} onSuccess={refetch} />
-      <CompraDetailDialog open={!!selectedCompra} onOpenChange={v => { if (!v) setSelectedCompra(null); }} compra={selectedCompra} />
+      <CompraDetailDialog open={!!selectedCompra} onOpenChange={v => { if (!v) setSelectedCompra(null); }} compra={selectedCompra} onRefetch={refetch} />
     </div>
   );
 }
