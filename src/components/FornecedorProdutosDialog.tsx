@@ -28,7 +28,7 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
     (async () => {
       const { data } = await (supabase as any)
         .from("produtos")
-        .select("id, code, model, category, retail_price, filial_id")
+        .select("id, code, model, category, retail_price, filial_id, barcode, referencia")
         .eq("filial_id", fornecedor.filial_id)
         .eq("status", "active")
         .order("model");
