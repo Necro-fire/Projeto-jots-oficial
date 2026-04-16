@@ -7,10 +7,12 @@ import { FilialSelector } from "@/components/FilialSelector";
 import { useConsignados, updateConsignadoStatus, type Consignado } from "@/hooks/useConsignados";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFilial } from "@/contexts/FilialContext";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ConsignadoDashboard } from "@/components/consignados/ConsignadoDashboard";
 import { ConsignadoList } from "@/components/consignados/ConsignadoList";
 import { NovoConsignadoDialog } from "@/components/consignados/NovoConsignadoDialog";
+import { EditConsignadoDialog } from "@/components/consignados/EditConsignadoDialog";
 import { ConsignadoHistoricoDialog } from "@/components/consignados/ConsignadoHistoricoDialog";
 import { ConsignadoTrocaDialog } from "@/components/consignados/ConsignadoTrocaDialog";
 import {
@@ -32,9 +34,11 @@ export default function ProdutosConsignados() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showNovo, setShowNovo] = useState(false);
+  const [editingItem, setEditingItem] = useState<Consignado | null>(null);
   const [historicoItem, setHistoricoItem] = useState<Consignado | null>(null);
   const [trocaItem, setTrocaItem] = useState<Consignado | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ item: Consignado; action: "vendido" | "devolvido" } | null>(null);
+  const [deletingItem, setDeletingItem] = useState<Consignado | null>(null);
 
   const filtered = useMemo(() => {
     let result = items;
@@ -72,6 +76,41 @@ export default function ProdutosConsignados() {
       toast.error(err.message || "Erro ao atualizar");
       setConfirmAction(null);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingItem) return;
+    try {
+      // Delete history first
+      await (supabase as any).from("consignado_historico").delete().eq("consignado_id", deletingItem.id);
+      // Delete trocas referencing this item
+      await (supabase as any).from("consignado_trocas").delete().eq("consignado_original_id", deletingItem.id);
+      await (supabase as any).from("consignado_trocas").delete().eq("consignado_novo_id", deletingItem.id);
+      // Delete the consignado
+      const { error } = await (supabase as any).from("consignados").delete().eq("id", deletingItem.id);
+      if (error) throw error;
+
+      // Restore stock if it was still consignado
+      if (deletingItem.status === "consignado") {
+        const { data: estoque } = await (supabase as any)
+          .from("estoque")
+          .select("id, quantidade")
+          .eq("produto_id", deletingItem.produto_id)
+          .eq("filial_id", deletingItem.filial_id)
+          .maybeSingle();
+
+        if (estoque) {
+          const newQty = estoque.quantidade + deletingItem.quantidade;
+          await (supabase as any).from("estoque").update({ quantidade: newQty }).eq("id", estoque.id);
+          await (supabase as any).from("produtos").update({ stock: newQty }).eq("id", deletingItem.produto_id);
+        }
+      }
+
+      toast.success("Consignado excluído!");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao excluir");
+    }
+    setDeletingItem(null);
   };
 
   return (
@@ -123,11 +162,19 @@ export default function ProdutosConsignados() {
             onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
             onTrocar={item => setTrocaItem(item)}
             onHistorico={item => setHistoricoItem(item)}
+            onEdit={item => setEditingItem(item)}
+            onDelete={item => setDeletingItem(item)}
           />
         )}
       </div>
 
       <NovoConsignadoDialog open={showNovo} onOpenChange={setShowNovo} />
+
+      <EditConsignadoDialog
+        open={!!editingItem}
+        onOpenChange={o => { if (!o) setEditingItem(null); }}
+        item={editingItem}
+      />
 
       <ConsignadoHistoricoDialog
         open={!!historicoItem}
@@ -142,6 +189,7 @@ export default function ProdutosConsignados() {
         item={trocaItem}
       />
 
+      {/* Confirm venda/devolução */}
       <AlertDialog open={!!confirmAction} onOpenChange={o => { if (!o) setConfirmAction(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -157,6 +205,25 @@ export default function ProdutosConsignados() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmAction}>Confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm delete */}
+      <AlertDialog open={!!deletingItem} onOpenChange={o => { if (!o) setDeletingItem(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir consignado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O registro "{deletingItem?.codigo}" será removido permanentemente.
+              {deletingItem?.status === "consignado" && " O estoque será restaurado."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+              Excluir
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
