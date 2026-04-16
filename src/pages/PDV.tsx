@@ -82,6 +82,37 @@ export default function PDV() {
   const { data: clients } = useClients();
   const { data: descontosAtacado } = useDescontosAtacado();
 
+  // Auto-load consignado when navigating from Produtos Consignados
+  useEffect(() => {
+    if (consignadoLoadedRef.current) return;
+    const fc = (location.state as any)?.fromConsignado;
+    if (!fc || !products.length) return;
+
+    const product = products.find(p => p.id === fc.produtoId);
+    if (!product) return;
+
+    consignadoLoadedRef.current = true;
+
+    if (fc.filialId && selectedFilial !== fc.filialId) {
+      setSelectedFilial(fc.filialId);
+    }
+
+    const qty = Math.max(1, Number(fc.quantidade) || 1);
+    setCart(prev => {
+      const additions: CartItem[] = [];
+      for (let i = 0; i < qty; i++) {
+        additions.push({ cartId: nextCartId(), product });
+      }
+      return [...prev, ...additions];
+    });
+
+    if (fc.clienteId) setSelectedClient(fc.clienteId);
+    setPendingConsignadoId(fc.consignadoId);
+
+    toast.success(`Produto consignado carregado: ${product.referencia || product.model}`);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, products, selectedFilial, setSelectedFilial, navigate, location.pathname]);
+
   const [selectedDiscountRules, setSelectedDiscountRules] = useState<DescontoAtacado[]>([]);
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
   const [lastRuleSignature, setLastRuleSignature] = useState("");
