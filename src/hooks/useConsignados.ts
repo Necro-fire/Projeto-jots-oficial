@@ -178,6 +178,16 @@ export async function updateConsignadoStatus(
 
   if (error) throw error;
 
+  // The DB trigger auto-logs status_alterado. Add explicit action log too.
+  const acao = newStatus === "vendido" ? "venda_manual" : "devolucao";
+  await (supabase as any).from("consignado_historico").insert({
+    consignado_id: id,
+    acao,
+    detalhes: { status: newStatus, quantidade: params.quantidade },
+    usuario_id: params.usuario_id,
+    usuario_nome: params.usuario_nome,
+  });
+
   // If devolvido, restore stock
   if (newStatus === "devolvido") {
     const { data: estoque } = await (supabase as any)
