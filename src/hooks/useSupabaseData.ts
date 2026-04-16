@@ -350,11 +350,11 @@ export async function createVenda(
     }
   }
 
-  // If consignado, create consignados records
+  // If consignado, create consignados records (stock already deducted by reduce_stock_on_sale trigger)
   if (isConsignado) {
     try {
       for (const item of items) {
-        await (supabase as any).from("consignados").insert({
+        const { data: csg } = await (supabase as any).from("consignados").insert({
           produto_id: item.produto_id,
           cliente_id: clientId,
           filial_id: filialId,
@@ -363,7 +363,23 @@ export async function createVenda(
           valor_total: item.unit_price * item.quantity,
           vendedor_nome: userName || "",
           venda_id: venda.id,
-        });
+        }).select().single();
+
+        // Log creation history
+        if (csg) {
+          await (supabase as any).from("consignado_historico").insert({
+            consignado_id: csg.id,
+            acao: "criado",
+            detalhes: {
+              origem: "pdv",
+              venda_id: venda.id,
+              quantidade: item.quantity,
+              valor_unitario: item.unit_price,
+            },
+            usuario_id: userId,
+            usuario_nome: userName || "",
+          });
+        }
       }
     } catch (e) {
       console.error("Erro ao criar registros de consignação:", e);
