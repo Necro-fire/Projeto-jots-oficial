@@ -55,14 +55,15 @@ export function useFornecedores() {
 
   useEffect(() => {
     fetchData();
+    const channelName = "fornecedores-rt-" + selectedFilial + "-" + Date.now();
     const channel = supabase
-      .channel("fornecedores-changes-" + selectedFilial)
+      .channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "fornecedores" }, () => {
         fetchData();
-      });
-    channel.subscribe();
+      })
+      .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchData]);
+  }, [fetchData, selectedFilial]);
 
   return { data, loading, refetch: fetchData };
 }
