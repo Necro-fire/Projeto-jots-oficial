@@ -184,10 +184,10 @@ export default function Fornecedores() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              title="Histórico de Compras"
-                              onClick={() => setComprasFornecedor({ id: f.id, nome: f.nome, filial_id: f.filial_id })}
+                              title="Nova Compra"
+                              onClick={() => setNovaCompraFornecedorId(f.id)}
                             >
-                              <History className="h-4 w-4" />
+                              <ShoppingCart className="h-4 w-4" />
                             </Button>
                             {canEdit && (
                               <Button size="icon" variant="ghost" title="Editar" onClick={() => handleEdit(f)}>
