@@ -114,9 +114,22 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por código ou modelo..."
+              placeholder="Buscar por código de barras, código da peça ou modelo..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => {
+                const val = e.target.value;
+                setSearch(val);
+                // Auto-link on exact barcode match (scanner)
+                if (val.trim().length >= 6) {
+                  const exact = allProducts.find(
+                    p => p.barcode && p.barcode === val.trim() && !linkedIds.has(p.id)
+                  );
+                  if (exact) {
+                    handleLink(exact.id);
+                    setSearch("");
+                  }
+                }
+              }}
               className="pl-9"
             />
           </div>
@@ -130,6 +143,7 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
                     <div>
                       <span className="font-mono text-xs mr-2">{p.code}</span>
                       <span className="text-sm">{p.model}</span>
+                      {p.barcode && <span className="text-xs text-muted-foreground ml-2">({p.barcode})</span>}
                     </div>
                     <Button size="sm" variant="outline" onClick={() => handleLink(p.id)} disabled={adding}>
                       <Plus className="h-3 w-3 mr-1" /> Vincular
