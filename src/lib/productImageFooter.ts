@@ -7,8 +7,8 @@
  */
 
 const FOOTER_CATEGORIES = ["Receituário", "Solar", "Clip-on"];
-const FOOTER_RATIO = 0.09;
-const MIN_FOOTER_HEIGHT = 56;
+const FOOTER_RATIO = 0.10;
+const MAX_FOOTER_RATIO = 0.15;
 const MAX_FOOTER_SCAN_RATIO = 0.38;
 const FOOTER_SEPARATOR_HEIGHT = 2;
 
@@ -61,12 +61,13 @@ export async function renderImageWithFooter(
   const pad = Math.round(srcW * 0.04);
   const nameText = productName || "";
   if (nameText) {
-    const nameFontSize = Math.max(12, Math.round(footerH * 0.35));
-    finalCtx.font = `600 ${nameFontSize}px Arial, sans-serif`;
+    const nameFontSize = clampFontSize(footerH * 0.35, srcW);
+    finalCtx.font = `600 ${nameFontSize}px "Segoe UI", Arial, sans-serif`;
     finalCtx.fillStyle = "#ffffff";
     finalCtx.textBaseline = "middle";
     finalCtx.textAlign = "left";
-    finalCtx.fillText(nameText, pad, footerY + footerH * 0.33);
+    const maxTextW = srcW - pad * 2;
+    finalCtx.fillText(nameText, pad, footerY + footerH * 0.33, maxTextW);
   }
 
   const line2Parts: string[] = [];
@@ -80,12 +81,13 @@ export async function renderImageWithFooter(
 
   const line2Text = line2Parts.join("   |   ");
   if (line2Text) {
-    const line2FontSize = Math.max(11, Math.round(footerH * 0.28));
-    finalCtx.font = `500 ${line2FontSize}px Arial, sans-serif`;
+    const line2FontSize = clampFontSize(footerH * 0.28, srcW);
+    finalCtx.font = `500 ${line2FontSize}px "Segoe UI", Arial, sans-serif`;
     finalCtx.fillStyle = "rgba(255, 255, 255, 0.90)";
     finalCtx.textBaseline = "middle";
     finalCtx.textAlign = "left";
-    finalCtx.fillText(line2Text, pad, nameText ? footerY + footerH * 0.7 : footerY + footerH * 0.5);
+    const maxTextW = srcW - pad * 2;
+    finalCtx.fillText(line2Text, pad, nameText ? footerY + footerH * 0.7 : footerY + footerH * 0.5, maxTextW);
   }
 
   return canvasToBlob(finalCanvas, "image/jpeg", 0.92);
@@ -127,7 +129,19 @@ async function prepareCleanImageCanvas(
 }
 
 function getFooterHeight(imageHeight: number): number {
-  return Math.max(MIN_FOOTER_HEIGHT, Math.round(imageHeight * FOOTER_RATIO));
+  const proportional = Math.round(imageHeight * FOOTER_RATIO);
+  const max = Math.round(imageHeight * MAX_FOOTER_RATIO);
+  // For very small images, allow the ratio to flex up so text stays readable.
+  // For large images, cap at MAX_FOOTER_RATIO to avoid oversized footers.
+  const minPx = Math.max(28, Math.round(imageHeight * 0.08));
+  return Math.max(minPx, Math.min(proportional, max));
+}
+
+function clampFontSize(idealSize: number, imageWidth: number): number {
+  // Scale font relative to width too, so narrow images don't get oversized text
+  const maxByWidth = Math.round(imageWidth * 0.045);
+  const minFont = Math.max(10, Math.round(imageWidth * 0.018));
+  return Math.max(minFont, Math.min(Math.round(idealSize), maxByWidth));
 }
 
 function detectExistingFooterHeight(ctx: CanvasRenderingContext2D, width: number, height: number): number {
@@ -237,7 +251,9 @@ function detectFooterBandStartFromMetrics(
 ): number | null {
   if (metrics.length === 0) return null;
 
-  const minFooterHeight = Math.min(imageHeight - 1, getFooterHeight(imageHeight));
+  // Use a lenient minimum for detection so we can catch legacy footers that may
+  // have been generated with a smaller ratio.
+  const minFooterHeight = Math.min(imageHeight - 1, Math.round(imageHeight * 0.08));
   const minBandRows = Math.max(18, Math.round(minFooterHeight * 0.55));
   const bottomWindow = metrics.slice(-Math.min(metrics.length, 12));
   const bottomDarkRatio = average(bottomWindow.map((row) => row.darkRatio));
