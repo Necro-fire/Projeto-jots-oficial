@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { createConsignado } from "@/hooks/useConsignados";
 import { useProducts, useClients } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
+import { matchesProductSearch } from "@/lib/productSearch";
 import { useFilial } from "@/contexts/FilialContext";
 
 interface Props {
@@ -31,11 +32,7 @@ export function NovoConsignadoDialog({ open, onOpenChange }: Props) {
 
   const activeProducts = products.filter(p => p.status === "active" && p.stock > 0);
   const filteredProducts = search
-    ? activeProducts.filter(p =>
-        p.referencia.toLowerCase().includes(search.toLowerCase()) ||
-        p.code.toLowerCase().includes(search.toLowerCase()) ||
-        p.model.toLowerCase().includes(search.toLowerCase())
-      )
+    ? activeProducts.filter(p => matchesProductSearch(p, search))
     : activeProducts.slice(0, 50);
 
   const selectedProduct = products.find(p => p.id === produtoId);

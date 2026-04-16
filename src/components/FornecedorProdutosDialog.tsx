@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useFornecedorProdutos } from "@/hooks/useFornecedores";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { matchesProductSearch } from "@/lib/productSearch";
 
 interface Props {
   open: boolean;
@@ -27,7 +28,7 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
     (async () => {
       const { data } = await (supabase as any)
         .from("produtos")
-        .select("id, code, model, category, retail_price, filial_id")
+        .select("id, code, model, category, retail_price, filial_id, barcode, referencia")
         .eq("filial_id", fornecedor.filial_id)
         .eq("status", "active")
         .order("model");
@@ -38,10 +39,8 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
   const linkedIds = useMemo(() => new Set(links.map((l: any) => l.produto_id)), [links]);
 
   const filteredProducts = useMemo(() => {
-    const q = search.toLowerCase();
     return allProducts.filter(p =>
-      !linkedIds.has(p.id) &&
-      (p.model?.toLowerCase().includes(q) || p.code?.toLowerCase().includes(q))
+      !linkedIds.has(p.id) && matchesProductSearch(p, search)
     );
   }, [allProducts, search, linkedIds]);
 
