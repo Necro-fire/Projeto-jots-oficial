@@ -62,8 +62,10 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
       setItems([]);
       setSearchTerm("");
       setSearchResults([]);
+    } else if (fornecedorIdPreset) {
+      setFornecedorId(fornecedorIdPreset);
     }
-  }, [open]);
+  }, [open, fornecedorIdPreset]);
 
   const searchProducts = async () => {
     if (!searchTerm.trim()) return;
