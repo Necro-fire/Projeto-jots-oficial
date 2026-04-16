@@ -14,7 +14,8 @@ import { FilialSelector } from "@/components/FilialSelector";
 import { useProducts, useClients, createVenda, type DbProduct } from "@/hooks/useSupabaseData";
 import { useDescontosAtacado, type DescontoAtacado } from "@/hooks/useDescontosAtacado";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useBlocker } from "react-router-dom";
+import { useBlocker, useLocation, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { SplitPaymentPanel, type PaymentEntry } from "@/components/pdv/SplitPaymentPanel";
 import { ClientSearchPanel } from "@/components/pdv/ClientSearchPanel";
 import { CreditCardInstallmentDialog } from "@/components/pdv/CreditCardInstallmentDialog";
@@ -72,10 +73,45 @@ export default function PDV() {
   const canSell = hasPermission('PDV', 'sell');
   const searchRef = useRef<HTMLInputElement>(null);
   const [pendingFilial, setPendingFilial] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [pendingConsignadoId, setPendingConsignadoId] = useState<string | null>(null);
+  const consignadoLoadedRef = useRef(false);
 
   const { data: products } = useProducts();
   const { data: clients } = useClients();
   const { data: descontosAtacado } = useDescontosAtacado();
+
+  // Auto-load consignado when navigating from Produtos Consignados
+  useEffect(() => {
+    if (consignadoLoadedRef.current) return;
+    const fc = (location.state as any)?.fromConsignado;
+    if (!fc || !products.length) return;
+
+    const product = products.find(p => p.id === fc.produtoId);
+    if (!product) return;
+
+    consignadoLoadedRef.current = true;
+
+    if (fc.filialId && selectedFilial !== fc.filialId) {
+      setSelectedFilial(fc.filialId);
+    }
+
+    const qty = Math.max(1, Number(fc.quantidade) || 1);
+    setCart(prev => {
+      const additions: CartItem[] = [];
+      for (let i = 0; i < qty; i++) {
+        additions.push({ cartId: nextCartId(), product });
+      }
+      return [...prev, ...additions];
+    });
+
+    if (fc.clienteId) setSelectedClient(fc.clienteId);
+    setPendingConsignadoId(fc.consignadoId);
+
+    toast.success(`Produto consignado carregado: ${product.referencia || product.model}`);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, products, selectedFilial, setSelectedFilial, navigate, location.pathname]);
 
   const [selectedDiscountRules, setSelectedDiscountRules] = useState<DescontoAtacado[]>([]);
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
@@ -336,7 +372,28 @@ export default function PDV() {
       const result = await createVenda(items, selectedClient, client?.store_name || "", finalMethod, saleOrigin, filialId, saleDiscount, user?.id, profile?.nome || user?.email || "", splits);
 
       toast.success(`Venda finalizada! ${result.sale_code || '#' + result.number} — Total: R$ ${saleTotal.toFixed(2)}`);
-      
+
+      // If sale originated from a consignado, mark it as sold and link to venda
+      if (pendingConsignadoId) {
+        try {
+          await (supabase as any)
+            .from("consignados")
+            .update({ status: "vendido", venda_id: result.id })
+            .eq("id", pendingConsignadoId);
+          await (supabase as any).from("consignado_historico").insert({
+            consignado_id: pendingConsignadoId,
+            acao: "venda_pdv",
+            detalhes: { venda_id: result.id, sale_code: result.sale_code },
+            usuario_id: user?.id,
+            usuario_nome: profile?.nome || "",
+          });
+        } catch (e) {
+          console.error("Erro ao marcar consignado como vendido:", e);
+        }
+        setPendingConsignadoId(null);
+        consignadoLoadedRef.current = false;
+      }
+
       // Build cupom and show dialog
       try {
         const cupom = await buildCupomFromVendaId(result.id);

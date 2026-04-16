@@ -33,6 +33,8 @@ export default function Fornecedores() {
 
   // --- Fornecedores state ---
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [cidadeFilter, setCidadeFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -55,12 +57,20 @@ export default function Fornecedores() {
   const canCreateCompra = hasPermission("fornecedores", "create") || isAdmin;
 
   // --- Fornecedores filtered ---
+  const cidades = useMemo(() => {
+    const set = new Set(fornecedores.map(f => f.cidade).filter(Boolean));
+    return Array.from(set).sort();
+  }, [fornecedores]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return fornecedores.filter(
-      f => !search || f.nome.toLowerCase().includes(q) || f.codigo.toLowerCase().includes(q) || f.cnpj_cpf.includes(search)
-    );
-  }, [fornecedores, search]);
+    return fornecedores.filter(f => {
+      const matchSearch = !search || f.nome.toLowerCase().includes(q) || f.codigo.toLowerCase().includes(q) || f.cnpj_cpf.includes(search);
+      const matchStatus = statusFilter === "all" || f.status === statusFilter;
+      const matchCidade = cidadeFilter === "all" || f.cidade === cidadeFilter;
+      return matchSearch && matchStatus && matchCidade;
+    });
+  }, [fornecedores, search, statusFilter, cidadeFilter]);
 
   // --- Compras filtered ---
   const filteredCompras = useMemo(() => {
@@ -115,15 +125,32 @@ export default function Fornecedores() {
 
           {/* ===== TAB: FORNECEDORES ===== */}
           <TabsContent value="fornecedores" className="space-y-4 mt-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="relative max-w-sm flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nome, código ou CNPJ..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="pl-9"
-                />
+            <div className="flex items-end justify-between flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 items-end flex-1">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nome, código ou CNPJ..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="active">Ativo</SelectItem>
+                    <SelectItem value="inactive">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={cidadeFilter} onValueChange={setCidadeFilter}>
+                  <SelectTrigger className="w-44"><SelectValue placeholder="Cidade" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as cidades</SelectItem>
+                    {cidades.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               {canCreate && (
                 <Button onClick={() => { setEditing(null); setShowForm(true); }}>

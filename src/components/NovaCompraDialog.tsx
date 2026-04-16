@@ -184,14 +184,14 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
 
       if (itemsError) throw itemsError;
 
-      // Register purchase as expense in the open caixa
+      // Register purchase as expense (despesa) in the open caixa
       const fornNome = fornecedores.find(f => f.id === fornecedorId)?.nome || "";
       await (supabase as any).from("caixa_movimentacoes").insert({
         caixa_id: caixaAberto.id,
-        tipo: "saida",
+        tipo: "despesa",
         valor: valorTotal,
         forma_pagamento: "dinheiro",
-        descricao: `Compra ${descricao ? descricao + " — " : ""}Fornecedor: ${fornNome}`,
+        descricao: `Compra Fornecedor: ${fornNome}${descricao ? " — " + descricao : ""}`,
         usuario_id: profile.id,
         usuario_nome: profile.nome,
       });

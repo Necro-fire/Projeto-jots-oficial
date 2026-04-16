@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Plus, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FilialSelector } from "@/components/FilialSelector";
 import { useConsignados, updateConsignadoStatus, type Consignado } from "@/hooks/useConsignados";
+import { useClients } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFilial } from "@/contexts/FilialContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,11 +30,18 @@ import {
 
 export default function ProdutosConsignados() {
   const { data: items, loading } = useConsignados();
+  const { data: clients } = useClients();
   const { user, profile } = useAuth();
   const { selectedFilial } = useFilial();
+  const navigate = useNavigate();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [clienteFilter, setClienteFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [trocadosCount, setTrocadosCount] = useState(0);
+
   const [showNovo, setShowNovo] = useState(false);
   const [editingItem, setEditingItem] = useState<Consignado | null>(null);
   const [historicoItem, setHistoricoItem] = useState<Consignado | null>(null);
@@ -40,10 +49,29 @@ export default function ProdutosConsignados() {
   const [confirmAction, setConfirmAction] = useState<{ item: Consignado; action: "vendido" | "devolvido" } | null>(null);
   const [deletingItem, setDeletingItem] = useState<Consignado | null>(null);
 
+  // Fetch trocas count for chart
+  useEffect(() => {
+    (async () => {
+      const { count } = await (supabase as any)
+        .from("consignado_trocas")
+        .select("id", { count: "exact", head: true });
+      setTrocadosCount(count || 0);
+    })();
+  }, [items.length]);
+
   const filtered = useMemo(() => {
     let result = items;
     if (statusFilter !== "all") {
       result = result.filter(i => i.status === statusFilter);
+    }
+    if (clienteFilter !== "all") {
+      result = result.filter(i => i.cliente_id === clienteFilter);
+    }
+    if (dateFrom) {
+      result = result.filter(i => i.created_at >= dateFrom);
+    }
+    if (dateTo) {
+      result = result.filter(i => i.created_at <= dateTo + "T23:59:59");
     }
     if (search) {
       const q = search.toLowerCase();
@@ -57,7 +85,22 @@ export default function ProdutosConsignados() {
       );
     }
     return result;
-  }, [items, search, statusFilter]);
+  }, [items, search, statusFilter, clienteFilter, dateFrom, dateTo]);
+
+  const handleVender = (item: Consignado) => {
+    // Navigate to PDV with consignado pre-loaded
+    navigate("/pdv", {
+      state: {
+        fromConsignado: {
+          consignadoId: item.id,
+          produtoId: item.produto_id,
+          quantidade: item.quantidade,
+          clienteId: item.cliente_id,
+          filialId: item.filial_id,
+        },
+      },
+    });
+  };
 
   const handleConfirmAction = async () => {
     if (!confirmAction) return;
@@ -81,16 +124,12 @@ export default function ProdutosConsignados() {
   const handleDelete = async () => {
     if (!deletingItem) return;
     try {
-      // Delete history first
       await (supabase as any).from("consignado_historico").delete().eq("consignado_id", deletingItem.id);
-      // Delete trocas referencing this item
       await (supabase as any).from("consignado_trocas").delete().eq("consignado_original_id", deletingItem.id);
       await (supabase as any).from("consignado_trocas").delete().eq("consignado_novo_id", deletingItem.id);
-      // Delete the consignado
       const { error } = await (supabase as any).from("consignados").delete().eq("id", deletingItem.id);
       if (error) throw error;
 
-      // Restore stock if it was still consignado
       if (deletingItem.status === "consignado") {
         const { data: estoque } = await (supabase as any)
           .from("estoque")
@@ -113,6 +152,16 @@ export default function ProdutosConsignados() {
     setDeletingItem(null);
   };
 
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setClienteFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  const hasActiveFilters = search || statusFilter !== "all" || clienteFilter !== "all" || dateFrom || dateTo;
+
   return (
     <div>
       <FilialSelector />
@@ -128,10 +177,11 @@ export default function ProdutosConsignados() {
           </Button>
         </div>
 
-        <ConsignadoDashboard items={items} />
+        <ConsignadoDashboard items={items} trocadosCount={trocadosCount} />
 
-        <div className="flex gap-2">
-          <div className="relative flex-1">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por código, produto, cliente..."
@@ -151,6 +201,22 @@ export default function ProdutosConsignados() {
               <SelectItem value="devolvido">Devolvido</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={clienteFilter} onValueChange={setClienteFilter}>
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="Cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os clientes</SelectItem>
+              {clients.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.store_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" title="De" />
+          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" title="Até" />
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar</Button>
+          )}
         </div>
 
         {loading ? (
@@ -158,7 +224,7 @@ export default function ProdutosConsignados() {
         ) : (
           <ConsignadoList
             items={filtered}
-            onMarkVendido={item => setConfirmAction({ item, action: "vendido" })}
+            onMarkVendido={handleVender}
             onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
             onTrocar={item => setTrocaItem(item)}
             onHistorico={item => setHistoricoItem(item)}
@@ -189,7 +255,6 @@ export default function ProdutosConsignados() {
         item={trocaItem}
       />
 
-      {/* Confirm venda/devolução */}
       <AlertDialog open={!!confirmAction} onOpenChange={o => { if (!o) setConfirmAction(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -209,7 +274,6 @@ export default function ProdutosConsignados() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Confirm delete */}
       <AlertDialog open={!!deletingItem} onOpenChange={o => { if (!o) setDeletingItem(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
