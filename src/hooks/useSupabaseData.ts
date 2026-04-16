@@ -115,6 +115,14 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
     if (filterFilial && selectedFilial !== "all") {
       query = query.eq("filial_id", selectedFilial);
     }
+    // Apply alphabetical sorting for entity tables
+    if (table === "produtos") {
+      query = query.order("model", { ascending: true });
+    } else if (table === "clientes") {
+      query = query.order("store_name", { ascending: true });
+    } else {
+      query = query.order("created_at", { ascending: false });
+    }
     const { data: rows, error } = await query;
     if (!error && rows) setData(rows as T[]);
     setLoading(false);
