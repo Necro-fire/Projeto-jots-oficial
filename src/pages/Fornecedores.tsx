@@ -57,12 +57,20 @@ export default function Fornecedores() {
   const canCreateCompra = hasPermission("fornecedores", "create") || isAdmin;
 
   // --- Fornecedores filtered ---
+  const cidades = useMemo(() => {
+    const set = new Set(fornecedores.map(f => f.cidade).filter(Boolean));
+    return Array.from(set).sort();
+  }, [fornecedores]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return fornecedores.filter(
-      f => !search || f.nome.toLowerCase().includes(q) || f.codigo.toLowerCase().includes(q) || f.cnpj_cpf.includes(search)
-    );
-  }, [fornecedores, search]);
+    return fornecedores.filter(f => {
+      const matchSearch = !search || f.nome.toLowerCase().includes(q) || f.codigo.toLowerCase().includes(q) || f.cnpj_cpf.includes(search);
+      const matchStatus = statusFilter === "all" || f.status === statusFilter;
+      const matchCidade = cidadeFilter === "all" || f.cidade === cidadeFilter;
+      return matchSearch && matchStatus && matchCidade;
+    });
+  }, [fornecedores, search, statusFilter, cidadeFilter]);
 
   // --- Compras filtered ---
   const filteredCompras = useMemo(() => {
