@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { createConsignadoTroca, type Consignado } from "@/hooks/useConsignados";
 import { useProducts } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
+import { matchesProductSearch } from "@/lib/productSearch";
 
 interface Props {
   open: boolean;

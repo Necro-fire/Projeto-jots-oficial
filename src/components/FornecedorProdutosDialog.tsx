@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useFornecedorProdutos } from "@/hooks/useFornecedores";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { matchesProductSearch } from "@/lib/productSearch";
 
 interface Props {
   open: boolean;

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { matchesProductSearch } from "@/lib/productSearch";
 import { Filter, X, Search, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

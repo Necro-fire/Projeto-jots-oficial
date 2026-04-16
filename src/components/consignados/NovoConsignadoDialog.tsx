@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { createConsignado } from "@/hooks/useConsignados";
 import { useProducts, useClients } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
+import { matchesProductSearch } from "@/lib/productSearch";
 import { useFilial } from "@/contexts/FilialContext";
 
 interface Props {
