@@ -423,6 +423,146 @@ export type Database = {
           },
         ]
       }
+      consignado_historico: {
+        Row: {
+          acao: string
+          consignado_id: string
+          created_at: string
+          detalhes: Json
+          id: string
+          usuario_id: string | null
+          usuario_nome: string
+        }
+        Insert: {
+          acao: string
+          consignado_id: string
+          created_at?: string
+          detalhes?: Json
+          id?: string
+          usuario_id?: string | null
+          usuario_nome?: string
+        }
+        Update: {
+          acao?: string
+          consignado_id?: string
+          created_at?: string
+          detalhes?: Json
+          id?: string
+          usuario_id?: string | null
+          usuario_nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consignado_historico_consignado_id_fkey"
+            columns: ["consignado_id"]
+            isOneToOne: false
+            referencedRelation: "consignados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consignado_trocas: {
+        Row: {
+          consignado_novo_id: string
+          consignado_original_id: string
+          created_at: string
+          diferenca_valor: number
+          id: string
+          observacoes: string
+          tipo_diferenca: string
+          usuario_id: string | null
+          usuario_nome: string
+        }
+        Insert: {
+          consignado_novo_id: string
+          consignado_original_id: string
+          created_at?: string
+          diferenca_valor?: number
+          id?: string
+          observacoes?: string
+          tipo_diferenca?: string
+          usuario_id?: string | null
+          usuario_nome?: string
+        }
+        Update: {
+          consignado_novo_id?: string
+          consignado_original_id?: string
+          created_at?: string
+          diferenca_valor?: number
+          id?: string
+          observacoes?: string
+          tipo_diferenca?: string
+          usuario_id?: string | null
+          usuario_nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consignado_trocas_consignado_novo_id_fkey"
+            columns: ["consignado_novo_id"]
+            isOneToOne: false
+            referencedRelation: "consignados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consignado_trocas_consignado_original_id_fkey"
+            columns: ["consignado_original_id"]
+            isOneToOne: false
+            referencedRelation: "consignados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consignados: {
+        Row: {
+          cliente_id: string | null
+          codigo: string
+          created_at: string
+          filial_id: string
+          id: string
+          observacoes: string
+          produto_id: string
+          quantidade: number
+          status: string
+          updated_at: string
+          valor_total: number
+          valor_unitario: number
+          venda_id: string | null
+          vendedor_nome: string
+        }
+        Insert: {
+          cliente_id?: string | null
+          codigo?: string
+          created_at?: string
+          filial_id?: string
+          id?: string
+          observacoes?: string
+          produto_id: string
+          quantidade?: number
+          status?: string
+          updated_at?: string
+          valor_total?: number
+          valor_unitario?: number
+          venda_id?: string | null
+          vendedor_nome?: string
+        }
+        Update: {
+          cliente_id?: string | null
+          codigo?: string
+          created_at?: string
+          filial_id?: string
+          id?: string
+          observacoes?: string
+          produto_id?: string
+          quantidade?: number
+          status?: string
+          updated_at?: string
+          valor_total?: number
+          valor_unitario?: number
+          venda_id?: string | null
+          vendedor_nome?: string
+        }
+        Relationships: []
+      }
       descontos_atacado: {
         Row: {
           categoria: string
