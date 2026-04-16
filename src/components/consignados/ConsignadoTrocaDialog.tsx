@@ -26,10 +26,7 @@ export function ConsignadoTrocaDialog({ open, onOpenChange, item }: Props) {
 
   const activeProducts = products.filter(p => p.status === "active" && p.stock > 0 && p.id !== item?.produto_id);
   const filtered = search
-    ? activeProducts.filter(p =>
-        p.referencia.toLowerCase().includes(search.toLowerCase()) ||
-        p.code.toLowerCase().includes(search.toLowerCase())
-      )
+    ? activeProducts.filter(p => matchesProductSearch(p, search))
     : activeProducts.slice(0, 30);
 
   const novoProduto = products.find(p => p.id === novoProdutoId);

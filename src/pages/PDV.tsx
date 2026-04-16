@@ -195,11 +195,7 @@ export default function PDV() {
       .map(p => ({ ...p, displayStock: p.stock - (cartQtyMap.get(p.id) || 0) }))
       .filter(p => p.status === "active" && p.displayStock > 0);
     if (!search) return active;
-    const q = search.toLowerCase();
-    return active.filter(p =>
-      p.referencia.toLowerCase().includes(q) ||
-      (p.barcode && p.barcode.toLowerCase().includes(q))
-    );
+    return active.filter(p => matchesProductSearch(p, search));
   }, [search, products, cartQtyMap]);
 
   const addToCart = useCallback((product: DbProduct) => {
@@ -217,9 +213,7 @@ export default function PDV() {
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
     if (!value.trim()) return;
-    const exactMatch = products.find(
-      p => p.barcode && p.barcode === value.trim() && p.status === "active" && p.stock > 0
-    );
+    const exactMatch = findByExactBarcode(products, value.trim());
     if (exactMatch) {
       addToCart(exactMatch);
       setSearch("");

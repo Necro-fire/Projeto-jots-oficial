@@ -31,11 +31,7 @@ export function NovoConsignadoDialog({ open, onOpenChange }: Props) {
 
   const activeProducts = products.filter(p => p.status === "active" && p.stock > 0);
   const filteredProducts = search
-    ? activeProducts.filter(p =>
-        p.referencia.toLowerCase().includes(search.toLowerCase()) ||
-        p.code.toLowerCase().includes(search.toLowerCase()) ||
-        p.model.toLowerCase().includes(search.toLowerCase())
-      )
+    ? activeProducts.filter(p => matchesProductSearch(p, search))
     : activeProducts.slice(0, 50);
 
   const selectedProduct = products.find(p => p.id === produtoId);

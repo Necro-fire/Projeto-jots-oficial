@@ -38,10 +38,8 @@ export function FornecedorProdutosDialog({ open, onOpenChange, fornecedor }: Pro
   const linkedIds = useMemo(() => new Set(links.map((l: any) => l.produto_id)), [links]);
 
   const filteredProducts = useMemo(() => {
-    const q = search.toLowerCase();
     return allProducts.filter(p =>
-      !linkedIds.has(p.id) &&
-      (p.model?.toLowerCase().includes(q) || p.code?.toLowerCase().includes(q))
+      !linkedIds.has(p.id) && matchesProductSearch(p, search)
     );
   }, [allProducts, search, linkedIds]);
 

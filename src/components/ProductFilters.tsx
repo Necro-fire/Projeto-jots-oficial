@@ -112,8 +112,7 @@ export function applyProductFilters<T extends {
     if (p.status === "inativo") return false;
 
     if (filters.search) {
-      const q = filters.search.toLowerCase();
-      if (!(p as any).referencia?.toLowerCase().includes(q) && !p.code.toLowerCase().includes(q) && !p.color.toLowerCase().includes(q)) return false;
+      if (!matchesProductSearch(p as any, filters.search)) return false;
     }
 
     if (filters.tipoItem === "normal" && p.is_acessorio) return false;
