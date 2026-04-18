@@ -288,6 +288,12 @@ export default function ProdutosConsignados() {
         item={trocaItem}
       />
 
+      <ConsignadoDevolucaoDialog
+        open={!!devolucaoItem}
+        onOpenChange={o => { if (!o) setDevolucaoItem(null); }}
+        item={devolucaoItem}
+      />
+
       <AlertDialog open={!!confirmAction} onOpenChange={o => { if (!o) setConfirmAction(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
