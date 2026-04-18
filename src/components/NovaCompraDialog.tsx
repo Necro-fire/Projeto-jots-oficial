@@ -597,7 +597,7 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
                     <TableRow key={`${item.produto_id ?? "pending"}-${idx}`}>
                       <TableCell className="font-mono text-xs">
                         {item.pending ? (
-                          <Badge variant="outline" className="text-amber-600 border-amber-600">NOVO</Badge>
+                          <Badge variant="outline">NOVO</Badge>
                         ) : (
                           item.produto_code
                         )}
