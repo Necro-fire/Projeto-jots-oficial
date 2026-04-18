@@ -13,9 +13,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ConsignadoDashboard } from "@/components/consignados/ConsignadoDashboard";
 import { ConsignadoList } from "@/components/consignados/ConsignadoList";
+import { ConsignadoCarrinhoCliente } from "@/components/consignados/ConsignadoCarrinhoCliente";
 import { EditConsignadoDialog } from "@/components/consignados/EditConsignadoDialog";
 import { ConsignadoHistoricoDialog } from "@/components/consignados/ConsignadoHistoricoDialog";
 import { ConsignadoTrocaDialog } from "@/components/consignados/ConsignadoTrocaDialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
