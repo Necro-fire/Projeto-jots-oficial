@@ -434,24 +434,32 @@ export default function PDV() {
 
       toast.success(`Venda finalizada! ${result.sale_code || '#' + result.number} — Total: R$ ${saleTotal.toFixed(2)}`);
 
-      // If sale originated from a consignado, mark it as sold and link to venda
-      if (pendingConsignadoId) {
+      // Mark linked consignados as sold (single-item path or full-cart conversion)
+      const consignadosToMark = pendingConsignadoIds.length > 0
+        ? pendingConsignadoIds
+        : (pendingConsignadoId ? [pendingConsignadoId] : []);
+
+      if (consignadosToMark.length > 0) {
         try {
           await (supabase as any)
             .from("consignados")
             .update({ status: "vendido", venda_id: result.id })
-            .eq("id", pendingConsignadoId);
-          await (supabase as any).from("consignado_historico").insert({
-            consignado_id: pendingConsignadoId,
+            .in("id", consignadosToMark);
+
+          const histRows = consignadosToMark.map(cid => ({
+            consignado_id: cid,
             acao: "venda_pdv",
-            detalhes: { venda_id: result.id, sale_code: result.sale_code },
+            detalhes: { venda_id: result.id, sale_code: result.sale_code, conversao_carrinho: pendingConsignadoIds.length > 0 },
             usuario_id: user?.id,
             usuario_nome: profile?.nome || "",
-          });
+          }));
+          await (supabase as any).from("consignado_historico").insert(histRows);
         } catch (e) {
-          console.error("Erro ao marcar consignado como vendido:", e);
+          console.error("Erro ao marcar consignados como vendidos:", e);
         }
         setPendingConsignadoId(null);
+        setPendingConsignadoIds([]);
+        setConversionBanner(false);
         consignadoLoadedRef.current = false;
       }
 
