@@ -740,7 +740,7 @@ export default function PDV() {
                     Entrega condicional — sem cobrança
                   </div>
                   <p className="text-[11px] text-amber-700 dark:text-amber-300/80">
-                    Os produtos sairão do estoque e ficarão registrados como consignados. Venda, troca ou devolução podem ser feitas depois.
+                    <strong>Sem descontos nesta etapa.</strong> Os produtos sairão do estoque e ficarão registrados como consignados (não entram no histórico de vendas). Descontos, venda, troca ou devolução só acontecem na finalização.
                   </p>
                 </div>
                 <Separator />
