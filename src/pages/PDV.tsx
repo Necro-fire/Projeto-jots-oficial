@@ -607,7 +607,35 @@ export default function PDV() {
           </Button>
         </div>
       )}
-      <div className="flex flex-1 overflow-hidden">
+      {conversionBanner && !consignacaoMode && (
+        <div className="mx-4 mt-3 rounded-lg border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 px-4 py-2.5 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <PackageCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-ui font-semibold text-emerald-900 dark:text-emerald-200">Conversão de Consignação em Venda</p>
+              <p className="text-caption text-emerald-700 dark:text-emerald-300/80">
+                Agora os produtos podem receber <strong>descontos</strong>, conforme as regras do sistema. Finalize normalmente para concluir a venda.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-emerald-400 text-emerald-800 hover:bg-emerald-100 dark:text-emerald-200 dark:hover:bg-emerald-900/50 shrink-0"
+            onClick={() => {
+              if (!confirm("Cancelar conversão? A sacola será esvaziada e os consignados permanecerão no carrinho do cliente.")) return;
+              setCart([]);
+              setPendingConsignadoIds([]);
+              setConversionBanner(false);
+              consignadoLoadedRef.current = false;
+              setSelectedClient("");
+              toast.info("Conversão cancelada");
+            }}
+          >
+            Cancelar conversão
+          </Button>
+        </div>
+      )}
         {/* Left - Product Grid */}
         <div className="flex-[3] flex flex-col border-r overflow-hidden">
           <div className="p-4 pb-2 space-y-2 shrink-0">
