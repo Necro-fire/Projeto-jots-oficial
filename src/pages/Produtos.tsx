@@ -163,12 +163,22 @@ export default function Produtos() {
 
   const handleExportImage = useCallback(async (product: DbProduct) => {
     if (!product.image_url) { toast.error("Produto sem imagem"); return; }
+    // Open WhatsApp SYNCHRONOUSLY inside the user gesture (avoids popup blockers).
+    if (!isMobile) {
+      const w = window.open("https://wa.me/", "_blank", "noopener,noreferrer");
+      if (!w) toast.error("Popup bloqueado — permita popups para este site e tente novamente");
+    }
     try {
       const { blob, ext } = await toShareableBlob(product.image_url);
       const name = `produto-${product.id.slice(0, 8)}-${sanitizeName(product.model || product.referencia)}.${ext}`;
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
       const file = new File([blob], name, { type: mimeType });
-      await shareViaWhatsApp([file]);
+      if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ title: "Imagens de Produtos", files: [file] }); }
+        catch (e: any) { if (e.name !== "AbortError") {/* fall through to zip */} }
+      }
+      await downloadZip([file]);
+      toast.success("Arquivo .zip baixado — anexe no WhatsApp");
     } catch { toast.error("Erro ao compartilhar imagem"); }
   }, [isMobile]);
 
@@ -177,6 +187,11 @@ export default function Produtos() {
   const handleExportAll = useCallback(async () => {
     const withImages = filtered.filter(p => p.image_url);
     if (withImages.length === 0) { toast.error("Nenhum produto com imagem para exportar"); return; }
+    // Open WhatsApp SYNCHRONOUSLY inside the user gesture (avoids popup blockers).
+    if (!isMobile) {
+      const w = window.open("https://wa.me/", "_blank", "noopener,noreferrer");
+      if (!w) toast.error("Popup bloqueado — permita popups para este site e tente novamente");
+    }
     setExporting(true);
     try {
       const files: File[] = [];
@@ -189,7 +204,12 @@ export default function Produtos() {
         } catch { /* skip failed */ }
       }));
       if (files.length === 0) { toast.error("Nenhuma imagem processada"); setExporting(false); return; }
-      await shareViaWhatsApp(files);
+      if (isMobile && navigator.canShare && navigator.canShare({ files })) {
+        try { await navigator.share({ title: "Imagens de Produtos", files }); }
+        catch (e: any) { if (e.name !== "AbortError") {/* fall through to zip */} }
+      }
+      await downloadZip(files);
+      toast.success(`Arquivo .zip com ${files.length} imagens baixado`);
     } catch { toast.error("Erro ao compartilhar imagens"); }
     finally { setExporting(false); }
   }, [filtered, isMobile]);
