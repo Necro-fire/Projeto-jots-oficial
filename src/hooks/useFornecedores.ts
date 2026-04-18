@@ -51,7 +51,8 @@ export function useFornecedores() {
       .select("*");
 
     if (selectedFilial !== "all") {
-      query = query.eq("filial_id", selectedFilial);
+      // Inclui fornecedores da filial atual + globais (filial_id = 'all')
+      query = query.in("filial_id", [selectedFilial, "all"]);
     }
 
     const { data: rows, error } = await query.order("nome", { ascending: true });
