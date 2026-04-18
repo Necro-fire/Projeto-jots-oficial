@@ -84,6 +84,23 @@ export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMa
     });
   };
 
+  const handleConverterEmVenda = (cart: ClienteCart) => {
+    if (!cart.clienteId) return;
+    navigate("/pdv", {
+      state: {
+        fromCarrinhoConsignado: {
+          clienteId: cart.clienteId,
+          filialId,
+          consignados: cart.items.map(it => ({
+            consignadoId: it.id,
+            produtoId: it.produto_id,
+            quantidade: it.quantidade,
+          })),
+        },
+      },
+    });
+  };
+
   if (carts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border border-dashed rounded-lg">
