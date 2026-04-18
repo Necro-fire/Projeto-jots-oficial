@@ -136,24 +136,24 @@ export default function Produtos() {
     saveAs(blob, zipName);
   };
 
-  // Mobile: native share sheet (with files attached). Always also generate ZIP for backup.
-  // Desktop: download ZIP + open WhatsApp Web with pre-filled message in parallel.
-  const shareViaWhatsApp = async (files: File[], message: string) => {
+  // Mobile: native share sheet (with files attached, NO message). Always also generate ZIP for backup.
+  // Desktop: download ZIP + open WhatsApp Web (no pre-filled message) in parallel.
+  const shareViaWhatsApp = async (files: File[]) => {
     // Trigger ZIP download in parallel (works on both mobile and desktop)
     downloadZip(files).catch(() => toast.error("Erro ao gerar arquivo .zip"));
 
     // Mobile path — native share API includes WhatsApp in the chooser and attaches files directly
     if (isMobile && navigator.canShare && navigator.canShare({ files })) {
       try {
-        await navigator.share({ title: "Imagens de Produtos", text: message, files });
+        await navigator.share({ title: "Imagens de Produtos", files });
         return;
       } catch (e: any) {
         if (e.name === "AbortError") return;
         // fall through to web fallback
       }
     }
-    // Desktop path (or mobile fallback) — open WhatsApp Web/app with message
-    openWhatsApp(message);
+    // Desktop path (or mobile fallback) — open WhatsApp Web/app without any message
+    openWhatsApp();
     toast.success(
       files.length === 1
         ? "WhatsApp aberto — arquivo .zip baixado, anexe a imagem na conversa"
@@ -168,9 +168,7 @@ export default function Produtos() {
       const name = `produto-${product.id.slice(0, 8)}-${sanitizeName(product.model || product.referencia)}.${ext}`;
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
       const file = new File([blob], name, { type: mimeType });
-      const productName = product.model || product.referencia;
-      const message = `*${productName}*\nRef: ${product.referencia}\nR$ ${Number(product.retail_price).toFixed(2)}`;
-      await shareViaWhatsApp([file], message);
+      await shareViaWhatsApp([file]);
     } catch { toast.error("Erro ao compartilhar imagem"); }
   }, [isMobile]);
 
@@ -191,8 +189,7 @@ export default function Produtos() {
         } catch { /* skip failed */ }
       }));
       if (files.length === 0) { toast.error("Nenhuma imagem processada"); setExporting(false); return; }
-      const message = `Confira nossa seleção de ${files.length} produtos:`;
-      await shareViaWhatsApp(files, message);
+      await shareViaWhatsApp(files);
     } catch { toast.error("Erro ao compartilhar imagens"); }
     finally { setExporting(false); }
   }, [filtered, isMobile]);
