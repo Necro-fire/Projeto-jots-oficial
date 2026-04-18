@@ -26,6 +26,7 @@ export default function Produtos() {
   const { selectedFilial, filiais } = useFilial();
   const { filters, setFilters } = useProductFilters();
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const canCreate = hasPermission('Produtos', 'create');
   const canEdit = hasPermission('Produtos', 'edit');
   const canDelete = hasPermission('Produtos', 'delete');
