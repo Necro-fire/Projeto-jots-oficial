@@ -35,10 +35,16 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
   const { selectedFilial } = useFilial();
   const { data: fornecedores } = useFornecedores();
 
+  const fornecedoresAtivos = useMemo(
+    () => fornecedores.filter((f) => (f.status ?? "active") === "active"),
+    [fornecedores]
+  );
+
   const [fornecedorId, setFornecedorId] = useState("");
   const [dataCompra, setDataCompra] = useState(() => new Date().toISOString().slice(0, 10));
   const [descricao, setDescricao] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const [formaPagamento, setFormaPagamento] = useState("dinheiro");
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -51,7 +57,9 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
     [fornecedorId, fornecedores]
   );
 
-  const compraFilialId = selectedFornecedor?.filial_id ?? (selectedFilial !== "all" ? selectedFilial : null);
+  const compraFilialId = selectedFornecedor?.filial_id === "all"
+    ? (selectedFilial !== "all" ? selectedFilial : null)
+    : selectedFornecedor?.filial_id ?? (selectedFilial !== "all" ? selectedFilial : null);
 
   useEffect(() => {
     if (!open) {
@@ -59,6 +67,7 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
       setDataCompra(new Date().toISOString().slice(0, 10));
       setDescricao("");
       setObservacoes("");
+      setFormaPagamento("dinheiro");
       setItems([]);
       setSearchTerm("");
       setSearchResults([]);
