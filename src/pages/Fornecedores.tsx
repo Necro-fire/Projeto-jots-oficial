@@ -225,7 +225,8 @@ export default function Fornecedores() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              title="Nova Compra"
+                              title={f.status === "active" ? "Nova Compra" : "Fornecedor inativo"}
+                              disabled={f.status !== "active"}
                               onClick={() => setNovaCompraFornecedorId(f.id)}
                             >
                               <ShoppingCart className="h-4 w-4" />

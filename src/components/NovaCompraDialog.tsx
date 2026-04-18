@@ -35,10 +35,16 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
   const { selectedFilial } = useFilial();
   const { data: fornecedores } = useFornecedores();
 
+  const fornecedoresAtivos = useMemo(
+    () => fornecedores.filter((f) => (f.status ?? "active") === "active"),
+    [fornecedores]
+  );
+
   const [fornecedorId, setFornecedorId] = useState("");
   const [dataCompra, setDataCompra] = useState(() => new Date().toISOString().slice(0, 10));
   const [descricao, setDescricao] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const [formaPagamento, setFormaPagamento] = useState("dinheiro");
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -51,7 +57,9 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
     [fornecedorId, fornecedores]
   );
 
-  const compraFilialId = selectedFornecedor?.filial_id ?? (selectedFilial !== "all" ? selectedFilial : null);
+  const compraFilialId = selectedFornecedor?.filial_id === "all"
+    ? (selectedFilial !== "all" ? selectedFilial : null)
+    : selectedFornecedor?.filial_id ?? (selectedFilial !== "all" ? selectedFilial : null);
 
   useEffect(() => {
     if (!open) {
@@ -59,6 +67,7 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
       setDataCompra(new Date().toISOString().slice(0, 10));
       setDescricao("");
       setObservacoes("");
+      setFormaPagamento("dinheiro");
       setItems([]);
       setSearchTerm("");
       setSearchResults([]);
@@ -125,6 +134,10 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
       toast.error("Selecione um fornecedor");
       return;
     }
+    if (!selectedFornecedor || (selectedFornecedor.status ?? "active") !== "active") {
+      toast.error("Fornecedor inativo: não é possível registrar compras.");
+      return;
+    }
     if (!compraFilialId) {
       toast.error("Selecione uma filial específica para registrar a compra.");
       return;
@@ -184,19 +197,69 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
 
       if (itemsError) throw itemsError;
 
+      // Atualizar estoque + vincular produtos ao fornecedor
+      for (const item of items) {
+        // Reconciliar estoque (garante que linha exista)
+        await (supabase as any).rpc("reconcile_inventory_for_product", {
+          _produto_id: item.produto_id,
+          _filial_id: compraFilialId,
+        });
+
+        // Buscar quantidade atual e somar
+        const { data: estoqueRow } = await (supabase as any)
+          .from("estoque")
+          .select("id, quantidade")
+          .eq("produto_id", item.produto_id)
+          .eq("filial_id", compraFilialId)
+          .maybeSingle();
+
+        const novaQtd = (estoqueRow?.quantidade ?? 0) + item.quantidade;
+
+        if (estoqueRow?.id) {
+          await (supabase as any)
+            .from("estoque")
+            .update({ quantidade: novaQtd })
+            .eq("id", estoqueRow.id);
+        } else {
+          await (supabase as any)
+            .from("estoque")
+            .insert({ produto_id: item.produto_id, filial_id: compraFilialId, quantidade: novaQtd });
+        }
+
+        // Espelhar no produtos.stock
+        await (supabase as any)
+          .from("produtos")
+          .update({ stock: novaQtd })
+          .eq("id", item.produto_id);
+
+        // Vincular produto ao fornecedor (se ainda não vinculado)
+        const { data: vincExistente } = await (supabase as any)
+          .from("fornecedor_produtos")
+          .select("id")
+          .eq("fornecedor_id", fornecedorId)
+          .eq("produto_id", item.produto_id)
+          .maybeSingle();
+
+        if (!vincExistente) {
+          await (supabase as any)
+            .from("fornecedor_produtos")
+            .insert({ fornecedor_id: fornecedorId, produto_id: item.produto_id });
+        }
+      }
+
       // Register purchase as expense (despesa) in the open caixa
-      const fornNome = fornecedores.find(f => f.id === fornecedorId)?.nome || "";
+      const fornNome = selectedFornecedor?.nome || "";
       await (supabase as any).from("caixa_movimentacoes").insert({
         caixa_id: caixaAberto.id,
         tipo: "despesa",
         valor: valorTotal,
-        forma_pagamento: "dinheiro",
+        forma_pagamento: formaPagamento,
         descricao: `Compra Fornecedor: ${fornNome}${descricao ? " — " + descricao : ""}`,
         usuario_id: profile.id,
         usuario_nome: profile.nome,
       });
 
-      toast.success("Compra registrada com sucesso");
+      toast.success("Compra registrada e estoque atualizado");
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
@@ -223,7 +286,10 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {fornecedores.map(f => (
+                  {fornecedoresAtivos.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum fornecedor ativo</div>
+                  )}
+                  {fornecedoresAtivos.map(f => (
                     <SelectItem key={f.id} value={f.id}>
                       {f.codigo} — {f.nome}
                     </SelectItem>
@@ -237,9 +303,27 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
             </div>
           </div>
 
-          <div>
-            <Label>Descrição</Label>
-            <Input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descrição da compra..." />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Forma de Pagamento *</Label>
+              <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="pix">PIX</SelectItem>
+                  <SelectItem value="debito">Cartão de Débito</SelectItem>
+                  <SelectItem value="credito">Cartão de Crédito</SelectItem>
+                  <SelectItem value="boleto">Boleto</SelectItem>
+                  <SelectItem value="transferencia">Transferência</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Descrição</Label>
+              <Input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descrição da compra..." />
+            </div>
           </div>
 
           <div>
