@@ -119,12 +119,9 @@ export default function Produtos() {
     });
   };
 
-  // Open WhatsApp (app on mobile, web on desktop) with optional pre-filled text
-  const openWhatsApp = (text: string) => {
-    const encoded = encodeURIComponent(text);
-    // wa.me works for both mobile (opens app) and desktop (opens WhatsApp Web)
-    const url = `https://wa.me/?text=${encoded}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+  // Open WhatsApp (app on mobile, web on desktop) WITHOUT any pre-filled message
+  const openWhatsApp = () => {
+    window.open("https://wa.me/", "_blank", "noopener,noreferrer");
   };
 
   // Generate a ZIP from the given files and trigger automatic download
