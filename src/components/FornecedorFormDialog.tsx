@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Globe, Building2 } from "lucide-react";
+import { Globe, Building2, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFilial } from "@/contexts/FilialContext";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ const empty = {
 export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: Props) {
   const [form, setForm] = useState(empty);
   const [isGlobal, setIsGlobal] = useState(false);
+  const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const { selectedFilial } = useFilial();
 
@@ -43,10 +44,12 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
         observacoes: editing.observacoes || "",
       });
       setIsGlobal(editing.filial_id === "all");
+      setIsActive((editing.status ?? "active") === "active");
     } else {
       setForm(empty);
       // Se está visualizando "Todas as filiais", default para global
       setIsGlobal(selectedFilial === "all");
+      setIsActive(true);
     }
   }, [editing, open, selectedFilial]);
 
@@ -74,17 +77,18 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
 
     setSaving(true);
     try {
+      const status = isActive ? "active" : "inactive";
       if (editing?.id) {
         const { error } = await (supabase as any)
           .from("fornecedores")
-          .update({ ...form, filial_id: targetFilial })
+          .update({ ...form, filial_id: targetFilial, status })
           .eq("id", editing.id);
         if (error) throw error;
         toast.success(isGlobal ? "Fornecedor global atualizado (todas as filiais)" : "Fornecedor atualizado");
       } else {
         const { error } = await (supabase as any)
           .from("fornecedores")
-          .insert({ ...form, filial_id: targetFilial });
+          .insert({ ...form, filial_id: targetFilial, status });
         if (error) throw error;
         toast.success(isGlobal ? "Fornecedor global cadastrado" : "Fornecedor cadastrado");
       }
@@ -119,6 +123,22 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
               </div>
             </div>
             <Switch id="global-switch" checked={isGlobal} onCheckedChange={setIsGlobal} />
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-3 bg-muted/30">
+            <div className="flex items-center gap-2">
+              {isActive ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <XCircle className="h-4 w-4 text-muted-foreground" />}
+              <div>
+                <Label className="text-sm font-medium cursor-pointer" htmlFor="status-switch">
+                  {isActive ? "Fornecedor Ativo" : "Fornecedor Inativo"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {isActive
+                    ? "Disponível em compras e novas operações"
+                    : "Não aparece em novas operações; histórico preservado"}
+                </p>
+              </div>
+            </div>
+            <Switch id="status-switch" checked={isActive} onCheckedChange={setIsActive} />
           </div>
           <div>
             <Label>Nome *</Label>
