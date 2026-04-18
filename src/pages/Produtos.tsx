@@ -343,7 +343,7 @@ export default function Produtos() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7"
-                        title="Compartilhar imagem"
+                        title="Enviar imagem por WhatsApp"
                         onClick={(e) => { e.stopPropagation(); handleExportImage(product); }}
                       >
                         <Share2 className="h-3.5 w-3.5" />
