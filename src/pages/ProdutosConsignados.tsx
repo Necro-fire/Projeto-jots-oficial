@@ -13,7 +13,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ConsignadoDashboard } from "@/components/consignados/ConsignadoDashboard";
 import { ConsignadoList } from "@/components/consignados/ConsignadoList";
-import { NovoConsignadoDialog } from "@/components/consignados/NovoConsignadoDialog";
 import { EditConsignadoDialog } from "@/components/consignados/EditConsignadoDialog";
 import { ConsignadoHistoricoDialog } from "@/components/consignados/ConsignadoHistoricoDialog";
 import { ConsignadoTrocaDialog } from "@/components/consignados/ConsignadoTrocaDialog";
