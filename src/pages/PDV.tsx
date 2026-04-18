@@ -528,6 +528,29 @@ export default function PDV() {
         }
         return true;
       }} />
+      {consignacaoMode && (
+        <div className="mx-4 mt-3 rounded-lg border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/30 px-4 py-2.5 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <PackageCheck className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-ui font-semibold text-amber-900 dark:text-amber-200">Modo Consignação ativado</p>
+              <p className="text-caption text-amber-700 dark:text-amber-300/80">Produtos serão entregues sem cobrança. Venda confirmada posteriormente.</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-amber-400 text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/50 shrink-0"
+            onClick={() => {
+              if (cart.length > 0 && !confirm("Sair do modo consignação? A sacola será mantida e voltará para venda normal.")) return;
+              setConsignacaoMode(false);
+              toast.info("Modo Consignação desativado");
+            }}
+          >
+            Sair
+          </Button>
+        </div>
+      )}
       <div className="flex flex-1 overflow-hidden">
         {/* Left - Product Grid */}
         <div className="flex-[3] flex flex-col border-r overflow-hidden">
