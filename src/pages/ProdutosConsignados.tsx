@@ -54,6 +54,7 @@ export default function ProdutosConsignados() {
   const [editingItem, setEditingItem] = useState<Consignado | null>(null);
   const [historicoItem, setHistoricoItem] = useState<Consignado | null>(null);
   const [trocaItem, setTrocaItem] = useState<Consignado | null>(null);
+  const [devolucaoItem, setDevolucaoItem] = useState<Consignado | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ item: Consignado; action: "vendido" | "devolvido" } | null>(null);
   const [deletingItem, setDeletingItem] = useState<Consignado | null>(null);
 
