@@ -174,6 +174,7 @@ export default function PDV() {
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state, products, selectedFilial, setSelectedFilial, navigate, location.pathname]);
 
+  const [selectedDiscountRules, setSelectedDiscountRules] = useState<DescontoAtacado[]>([]);
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
   const [lastRuleSignature, setLastRuleSignature] = useState("");
 
