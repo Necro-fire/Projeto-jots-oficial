@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Trash2, ShoppingCart, Barcode, Keyboard, Tag, Eye } from "lucide-react";
+import { Trash2, ShoppingCart, Barcode, Keyboard, Tag, Eye, PackageCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { FilialSelector } from "@/components/FilialSelector";
 import { useProducts, useClients, createVenda, type DbProduct } from "@/hooks/useSupabaseData";
 import { useDescontosAtacado, type DescontoAtacado } from "@/hooks/useDescontosAtacado";
+import { createConsignado } from "@/hooks/useConsignados";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,6 +78,21 @@ export default function PDV() {
   const navigate = useNavigate();
   const [pendingConsignadoId, setPendingConsignadoId] = useState<string | null>(null);
   const consignadoLoadedRef = useRef(false);
+  const [consignacaoMode, setConsignacaoMode] = useState(false);
+  const [submittingConsignacao, setSubmittingConsignacao] = useState(false);
+
+  // Detect consignment mode from navigation state
+  useEffect(() => {
+    const cm = (location.state as any)?.consignacaoMode;
+    const fid = (location.state as any)?.filialId;
+    if (cm) {
+      setConsignacaoMode(true);
+      if (fid && selectedFilial !== fid) setSelectedFilial(fid);
+      toast.info("Modo Consignação ativado — produtos não serão cobrados");
+      navigate(location.pathname, { replace: true, state: { _consumed: true } });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: products } = useProducts();
   const { data: clients } = useClients();
@@ -417,6 +433,49 @@ export default function PDV() {
     }
   };
 
+  // ===== Consignment Mode: register items as consignados (no payment, no caixa) =====
+  const finalizeConsignacao = async () => {
+    if (cart.length === 0) { toast.error("Adicione produtos à sacola"); return; }
+    if (selectedFilial === "all") { toast.error("Selecione uma filial específica"); return; }
+
+    setSubmittingConsignacao(true);
+    try {
+      const grouped = new Map<string, { product: DbProduct; qty: number }>();
+      for (const item of cart) {
+        const g = grouped.get(item.product.id);
+        if (g) g.qty++;
+        else grouped.set(item.product.id, { product: item.product, qty: 1 });
+      }
+
+      let count = 0;
+      for (const { product, qty } of grouped.values()) {
+        await createConsignado({
+          produto_id: product.id,
+          cliente_id: selectedClient || null,
+          filial_id: selectedFilial,
+          quantidade: qty,
+          valor_unitario: Number(product.retail_price),
+          vendedor_nome: profile?.nome || user?.email || "",
+          observacoes: "",
+          usuario_id: user?.id || "",
+          usuario_nome: profile?.nome || "",
+        });
+        count++;
+      }
+
+      toast.success(`${count} ${count === 1 ? "produto consignado" : "produtos consignados"} registrado(s)!`);
+
+      setCart([]);
+      setSelectedClient("");
+      setConsignacaoMode(false);
+      navigate("/produtos-consignados");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao registrar consignação");
+    } finally {
+      setSubmittingConsignacao(false);
+    }
+  };
+
   // Block navigation when cart has items
   const blocker = useBlocker(cart.length > 0);
 
@@ -439,7 +498,8 @@ export default function PDV() {
 
       if (e.key === "F2") {
         e.preventDefault();
-        finalizeSale();
+        if (consignacaoMode) finalizeConsignacao();
+        else finalizeSale();
       } else if (e.key === "F4") {
         e.preventDefault();
         searchRef.current?.focus();
@@ -469,6 +529,29 @@ export default function PDV() {
         }
         return true;
       }} />
+      {consignacaoMode && (
+        <div className="mx-4 mt-3 rounded-lg border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/30 px-4 py-2.5 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <PackageCheck className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-ui font-semibold text-amber-900 dark:text-amber-200">Modo Consignação ativado</p>
+              <p className="text-caption text-amber-700 dark:text-amber-300/80">Produtos serão entregues sem cobrança. Venda confirmada posteriormente.</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-amber-400 text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/50 shrink-0"
+            onClick={() => {
+              if (cart.length > 0 && !confirm("Sair do modo consignação? A sacola será mantida e voltará para venda normal.")) return;
+              setConsignacaoMode(false);
+              toast.info("Modo Consignação desativado");
+            }}
+          >
+            Sair
+          </Button>
+        </div>
+      )}
       <div className="flex flex-1 overflow-hidden">
         {/* Left - Product Grid */}
         <div className="flex-[3] flex flex-col border-r overflow-hidden">
@@ -492,7 +575,11 @@ export default function PDV() {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <Badge variant="secondary" className="text-caption">Estoque</Badge>
+                {consignacaoMode ? (
+                  <Badge className="text-caption bg-amber-500 text-white hover:bg-amber-500">Consignação</Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-caption">Estoque</Badge>
+                )}
               </div>
             </div>
             <div className="relative">
@@ -538,7 +625,9 @@ export default function PDV() {
                       <h3 className="text-ui font-medium truncate">{product.model || product.referencia}</h3>
                       <div className="flex justify-between items-center mt-1">
                         <Badge variant="secondary" className="text-caption tabular-nums">{product.displayStock} un.</Badge>
-                        <span className="text-ui font-medium tabular-nums text-primary">R$ {Number(product.retail_price).toFixed(2)}</span>
+                        <span className={`text-ui font-medium tabular-nums ${consignacaoMode ? "text-muted-foreground line-through" : "text-primary"}`}>
+                          R$ {Number(product.retail_price).toFixed(2)}
+                        </span>
                       </div>
                     </button>
                   </div>
@@ -615,7 +704,9 @@ export default function PDV() {
                       {g.ruleLabel && <p className="text-[10px] text-success">{g.ruleLabel}</p>}
                     </div>
                     <div className="flex flex-col items-end w-24">
-                      {g.ruleLabel ? (
+                      {consignacaoMode ? (
+                        <span className="text-ui font-medium tabular-nums text-muted-foreground line-through">R$ {g.totalOriginal.toFixed(2)}</span>
+                      ) : g.ruleLabel ? (
                         <>
                           <span className="text-caption tabular-nums text-muted-foreground line-through">R$ {g.totalOriginal.toFixed(2)}</span>
                           <span className="text-ui font-medium tabular-nums text-success">R$ {g.totalDiscounted.toFixed(2)}</span>
@@ -639,109 +730,149 @@ export default function PDV() {
           </div>
 
           <div className="p-4 border-t space-y-3 shrink-0">
-            <SplitPaymentPanel
-              total={subtotal}
-              isSplit={isSplitPayment}
-              onSplitChange={(split) => {
-                setIsSplitPayment(split);
-                setCreditCardInfo(null);
-                setBoletoInfo(null);
-              }}
-              singleMethod={paymentMethod}
-              onSingleMethodChange={(method) => {
-                setPaymentMethod(method);
-                setCreditCardInfo(null);
-                setBoletoInfo(null);
-                if (method === "cartao" && cart.length > 0) {
-                  setShowCreditCardModal(true);
-                } else if (method === "boleto" && cart.length > 0) {
-                  setShowBoletoModal(true);
-                }
-              }}
-              entries={paymentEntries}
-              onEntriesChange={setPaymentEntries}
-              onOpenInstallments={(entryId, entryAmount) => {
-                setSplitInstallmentEntryId(entryId);
-                setSplitInstallmentAmount(entryAmount);
-                setShowCreditCardModal(true);
-              }}
-              onOpenBoleto={(entryId, entryAmount) => {
-                setSplitBoletoEntryId(entryId);
-                setSplitBoletoAmount(entryAmount);
-                setShowBoletoModal(true);
-              }}
-            />
+            {consignacaoMode ? (
+              <>
+                <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 px-3 py-2.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-caption text-amber-800 dark:text-amber-200 font-medium">
+                    <PackageCheck className="h-3.5 w-3.5" />
+                    Entrega condicional — sem cobrança
+                  </div>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300/80">
+                    Os produtos sairão do estoque e ficarão registrados como consignados. Venda, troca ou devolução podem ser feitas depois.
+                  </p>
+                </div>
+                <Separator />
+                <div className="space-y-1">
+                  <div className="flex justify-between text-caption text-muted-foreground">
+                    <span>{cart.length} {cart.length === 1 ? "item" : "itens"}</span>
+                    <span>Cliente: {selectedClient ? "selecionado" : "opcional"}</span>
+                  </div>
+                  <div className="flex justify-between text-subhead font-semibold">
+                    <span>Valor referência</span>
+                    <span className="tabular-nums text-muted-foreground line-through">R$ {subtotalOriginal.toFixed(2)}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Nada será cobrado neste momento.</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 h-10" onClick={() => setCart([])}>
+                    Limpar
+                  </Button>
+                  <Button
+                    className="flex-1 h-10 bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={finalizeConsignacao}
+                    disabled={submittingConsignacao || cart.length === 0}
+                  >
+                    {submittingConsignacao ? "Registrando..." : "Registrar Consignação"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <SplitPaymentPanel
+                  total={subtotal}
+                  isSplit={isSplitPayment}
+                  onSplitChange={(split) => {
+                    setIsSplitPayment(split);
+                    setCreditCardInfo(null);
+                    setBoletoInfo(null);
+                  }}
+                  singleMethod={paymentMethod}
+                  onSingleMethodChange={(method) => {
+                    setPaymentMethod(method);
+                    setCreditCardInfo(null);
+                    setBoletoInfo(null);
+                    if (method === "cartao" && cart.length > 0) {
+                      setShowCreditCardModal(true);
+                    } else if (method === "boleto" && cart.length > 0) {
+                      setShowBoletoModal(true);
+                    }
+                  }}
+                  entries={paymentEntries}
+                  onEntriesChange={setPaymentEntries}
+                  onOpenInstallments={(entryId, entryAmount) => {
+                    setSplitInstallmentEntryId(entryId);
+                    setSplitInstallmentAmount(entryAmount);
+                    setShowCreditCardModal(true);
+                  }}
+                  onOpenBoleto={(entryId, entryAmount) => {
+                    setSplitBoletoEntryId(entryId);
+                    setSplitBoletoAmount(entryAmount);
+                    setShowBoletoModal(true);
+                  }}
+                />
 
-            {/* Show credit card / boleto info badge */}
-            {!isSplitPayment && paymentMethod === "cartao" && creditCardInfo && (
-              <div className="flex items-center justify-between text-caption bg-secondary rounded-md px-3 py-1.5">
-                <span className="text-muted-foreground">{creditCardInfo.installments}x de R$ {(creditCardInfo.finalTotal / creditCardInfo.installments).toFixed(2)} (total R$ {creditCardInfo.finalTotal.toFixed(2)})</span>
-                <button className="text-primary text-xs underline" onClick={() => setShowCreditCardModal(true)}>Alterar</button>
-              </div>
-            )}
-            {!isSplitPayment && paymentMethod === "boleto" && boletoInfo && (
-              <div className="flex items-center justify-between text-caption bg-secondary rounded-md px-3 py-1.5">
-                <span className="text-muted-foreground">{boletoInfo.installments}x a cada {boletoInfo.interval} dias</span>
-                <button className="text-primary text-xs underline" onClick={() => setShowBoletoModal(true)}>Alterar</button>
-              </div>
-            )}
-
-            <Separator />
-            <div className="space-y-1">
-              <div className="flex justify-between text-caption text-muted-foreground">
-                <span>{cart.length} {cart.length === 1 ? "item" : "itens"}</span>
-                {hasAnyWholesale && (
-                  <span className="text-success flex items-center gap-1">
-                    <Tag className="h-3 w-3" />
-                    Atacado aplicado
-                  </span>
+                {/* Show credit card / boleto info badge */}
+                {!isSplitPayment && paymentMethod === "cartao" && creditCardInfo && (
+                  <div className="flex items-center justify-between text-caption bg-secondary rounded-md px-3 py-1.5">
+                    <span className="text-muted-foreground">{creditCardInfo.installments}x de R$ {(creditCardInfo.finalTotal / creditCardInfo.installments).toFixed(2)} (total R$ {creditCardInfo.finalTotal.toFixed(2)})</span>
+                    <button className="text-primary text-xs underline" onClick={() => setShowCreditCardModal(true)}>Alterar</button>
+                  </div>
                 )}
-              </div>
-              {hasAnyWholesale && totalSaved > 0 && (
-                <div className="flex justify-between text-caption">
-                  <span className="text-muted-foreground">Valor original</span>
-                  <span className="tabular-nums text-muted-foreground line-through">R$ {subtotalOriginal.toFixed(2)}</span>
-                </div>
-              )}
-              {hasAnyWholesale && totalSaved > 0 && (
-                <div className="flex justify-between text-caption">
-                  <span className="text-success">Economia atacado</span>
-                  <span className="tabular-nums text-success">- R$ {totalSaved.toFixed(2)}</span>
-                </div>
-              )}
-              {(() => {
-                const displayTotal = !isSplitPayment && paymentMethod === "cartao" && creditCardInfo
-                  ? creditCardInfo.finalTotal
-                  : !isSplitPayment && paymentMethod === "boleto" && boletoInfo
-                    ? boletoInfo.finalTotal
-                    : subtotal;
-                const hasInterest = displayTotal > subtotal + 0.01;
-                return (
-                  <>
-                    {hasInterest && (
-                      <div className="flex justify-between text-caption text-muted-foreground">
-                        <span>Subtotal</span>
-                        <span className="tabular-nums">R$ {subtotal.toFixed(2)}</span>
-                      </div>
+                {!isSplitPayment && paymentMethod === "boleto" && boletoInfo && (
+                  <div className="flex items-center justify-between text-caption bg-secondary rounded-md px-3 py-1.5">
+                    <span className="text-muted-foreground">{boletoInfo.installments}x a cada {boletoInfo.interval} dias</span>
+                    <button className="text-primary text-xs underline" onClick={() => setShowBoletoModal(true)}>Alterar</button>
+                  </div>
+                )}
+
+                <Separator />
+                <div className="space-y-1">
+                  <div className="flex justify-between text-caption text-muted-foreground">
+                    <span>{cart.length} {cart.length === 1 ? "item" : "itens"}</span>
+                    {hasAnyWholesale && (
+                      <span className="text-success flex items-center gap-1">
+                        <Tag className="h-3 w-3" />
+                        Atacado aplicado
+                      </span>
                     )}
-                    <div className="flex justify-between text-subhead font-semibold">
-                      <span>Total{hasInterest ? " c/ juros" : ""}</span>
-                      <motion.span key={displayTotal} initial={{ scale: 1.05 }} animate={{ scale: 1 }} className={`tabular-nums ${hasAnyWholesale ? "text-success" : "text-foreground"}`}>
-                        R$ {displayTotal.toFixed(2)}
-                      </motion.span>
+                  </div>
+                  {hasAnyWholesale && totalSaved > 0 && (
+                    <div className="flex justify-between text-caption">
+                      <span className="text-muted-foreground">Valor original</span>
+                      <span className="tabular-nums text-muted-foreground line-through">R$ {subtotalOriginal.toFixed(2)}</span>
                     </div>
-                  </>
-                );
-              })()}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 h-10" onClick={() => { setCart([]); setCreditCardInfo(null); setBoletoInfo(null); }}>
-                Cancelar
-              </Button>
-              <Button className="flex-1 h-10" onClick={finalizeSale} disabled={submitting || !canSell} title={!canSell ? "Sem permissão para vender" : undefined}>
-                {submitting ? "Processando..." : "Finalizar (F2)"}
-              </Button>
-            </div>
+                  )}
+                  {hasAnyWholesale && totalSaved > 0 && (
+                    <div className="flex justify-between text-caption">
+                      <span className="text-success">Economia atacado</span>
+                      <span className="tabular-nums text-success">- R$ {totalSaved.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(() => {
+                    const displayTotal = !isSplitPayment && paymentMethod === "cartao" && creditCardInfo
+                      ? creditCardInfo.finalTotal
+                      : !isSplitPayment && paymentMethod === "boleto" && boletoInfo
+                        ? boletoInfo.finalTotal
+                        : subtotal;
+                    const hasInterest = displayTotal > subtotal + 0.01;
+                    return (
+                      <>
+                        {hasInterest && (
+                          <div className="flex justify-between text-caption text-muted-foreground">
+                            <span>Subtotal</span>
+                            <span className="tabular-nums">R$ {subtotal.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-subhead font-semibold">
+                          <span>Total{hasInterest ? " c/ juros" : ""}</span>
+                          <motion.span key={displayTotal} initial={{ scale: 1.05 }} animate={{ scale: 1 }} className={`tabular-nums ${hasAnyWholesale ? "text-success" : "text-foreground"}`}>
+                            R$ {displayTotal.toFixed(2)}
+                          </motion.span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 h-10" onClick={() => { setCart([]); setCreditCardInfo(null); setBoletoInfo(null); }}>
+                    Cancelar
+                  </Button>
+                  <Button className="flex-1 h-10" onClick={finalizeSale} disabled={submitting || !canSell} title={!canSell ? "Sem permissão para vender" : undefined}>
+                    {submitting ? "Processando..." : "Finalizar (F2)"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
