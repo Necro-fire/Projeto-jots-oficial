@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Plus, Package, Pencil, Trash2, ShoppingCart, Printer, Share2, ImageDown, ZoomIn, Eye } from "lucide-react";
 // productImageFooter is used at save-time in ProductFormDialog
 import JsBarcode from "jsbarcode";
+import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
@@ -126,8 +127,24 @@ export default function Produtos() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // Mobile: native share sheet (user picks WhatsApp). Desktop: download files + open WhatsApp Web.
+  // Generate a ZIP from the given files and trigger automatic download
+  const downloadZip = async (files: File[], zipName = "imagens-compartilhamento.zip") => {
+    const zip = new JSZip();
+    files.forEach((f, i) => {
+      // Standardize names inside the zip: produto-1.jpg, produto-2.jpg, ...
+      const ext = f.name.split(".").pop() || "jpg";
+      zip.file(`produto-${i + 1}.${ext}`, f);
+    });
+    const blob = await zip.generateAsync({ type: "blob" });
+    saveAs(blob, zipName);
+  };
+
+  // Mobile: native share sheet (with files attached). Always also generate ZIP for backup.
+  // Desktop: download ZIP + open WhatsApp Web with pre-filled message in parallel.
   const shareViaWhatsApp = async (files: File[], message: string) => {
+    // Trigger ZIP download in parallel (works on both mobile and desktop)
+    downloadZip(files).catch(() => toast.error("Erro ao gerar arquivo .zip"));
+
     // Mobile path — native share API includes WhatsApp in the chooser and attaches files directly
     if (isMobile && navigator.canShare && navigator.canShare({ files })) {
       try {
@@ -135,22 +152,16 @@ export default function Produtos() {
         return;
       } catch (e: any) {
         if (e.name === "AbortError") return;
-        // fall through to desktop fallback
+        // fall through to web fallback
       }
     }
-    // Desktop path — download each image individually, then open WhatsApp Web with message
-    files.forEach((f, i) => {
-      // Stagger downloads slightly so browsers don't block them
-      setTimeout(() => saveAs(f, f.name), i * 150);
-    });
-    setTimeout(() => {
-      openWhatsApp(message);
-      toast.success(
-        files.length === 1
-          ? "Imagem baixada — arraste para o WhatsApp Web"
-          : `${files.length} imagens baixadas — arraste para o WhatsApp Web`
-      );
-    }, files.length * 150 + 200);
+    // Desktop path (or mobile fallback) — open WhatsApp Web/app with message
+    openWhatsApp(message);
+    toast.success(
+      files.length === 1
+        ? "WhatsApp aberto — arquivo .zip baixado, anexe a imagem na conversa"
+        : `WhatsApp aberto — arquivo .zip com ${files.length} imagens baixado`
+    );
   };
 
   const handleExportImage = useCallback(async (product: DbProduct) => {
