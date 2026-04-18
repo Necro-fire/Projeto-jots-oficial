@@ -36,9 +36,28 @@ interface ProductFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product?: DbProduct | null;
+  /** Pré-define a filial (usado pelo fluxo de compra: filial do fornecedor ou "all" para global). */
+  presetFilialId?: string;
+  /** Pré-define a quantidade inicial (estoque inicial após a compra). */
+  presetQuantidade?: number;
+  /** Pré-define o custo unitário. */
+  presetCusto?: number;
+  /** Pré-define o nome/modelo do produto. */
+  presetName?: string;
+  /** Callback após salvar com sucesso, recebe os IDs criados (1 ou 3 quando filial=all). */
+  onSaved?: (produtoIds: string[]) => void;
 }
 
-export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDialogProps) {
+export function ProductFormDialog({
+  open,
+  onOpenChange,
+  product,
+  presetFilialId,
+  presetQuantidade,
+  presetCusto,
+  presetName,
+  onSaved,
+}: ProductFormDialogProps) {
   const { selectedFilial } = useFilial();
   const filialLocked = selectedFilial !== "all";
   const [classificacaoProduto, setClassificacaoProduto] = useState<ClassificacaoProduto | "">("");
