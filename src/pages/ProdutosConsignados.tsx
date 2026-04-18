@@ -237,15 +237,33 @@ export default function ProdutosConsignados() {
         {loading ? (
           <p className="text-muted-foreground text-center py-8">Carregando...</p>
         ) : (
-          <ConsignadoList
-            items={filtered}
-            onMarkVendido={handleVender}
-            onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
-            onTrocar={item => setTrocaItem(item)}
-            onHistorico={item => setHistoricoItem(item)}
-            onEdit={item => setEditingItem(item)}
-            onDelete={item => setDeletingItem(item)}
-          />
+          <Tabs defaultValue="carrinhos" className="w-full">
+            <TabsList>
+              <TabsTrigger value="carrinhos">Carrinhos por Cliente</TabsTrigger>
+              <TabsTrigger value="lista">Todos os registros</TabsTrigger>
+            </TabsList>
+            <TabsContent value="carrinhos" className="mt-3">
+              <ConsignadoCarrinhoCliente
+                items={items}
+                filialId={selectedFilial}
+                onMarkVendido={handleVender}
+                onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
+                onTrocar={item => setTrocaItem(item)}
+                onEdit={item => setEditingItem(item)}
+              />
+            </TabsContent>
+            <TabsContent value="lista" className="mt-3">
+              <ConsignadoList
+                items={filtered}
+                onMarkVendido={handleVender}
+                onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
+                onTrocar={item => setTrocaItem(item)}
+                onHistorico={item => setHistoricoItem(item)}
+                onEdit={item => setEditingItem(item)}
+                onDelete={item => setDeletingItem(item)}
+              />
+            </TabsContent>
+          </Tabs>
         )}
       </div>
 
