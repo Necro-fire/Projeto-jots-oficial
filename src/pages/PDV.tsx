@@ -574,7 +574,11 @@ export default function PDV() {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <Badge variant="secondary" className="text-caption">Estoque</Badge>
+                {consignacaoMode ? (
+                  <Badge className="text-caption bg-amber-500 text-white hover:bg-amber-500">Consignação</Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-caption">Estoque</Badge>
+                )}
               </div>
             </div>
             <div className="relative">
@@ -620,7 +624,9 @@ export default function PDV() {
                       <h3 className="text-ui font-medium truncate">{product.model || product.referencia}</h3>
                       <div className="flex justify-between items-center mt-1">
                         <Badge variant="secondary" className="text-caption tabular-nums">{product.displayStock} un.</Badge>
-                        <span className="text-ui font-medium tabular-nums text-primary">R$ {Number(product.retail_price).toFixed(2)}</span>
+                        <span className={`text-ui font-medium tabular-nums ${consignacaoMode ? "text-muted-foreground line-through" : "text-primary"}`}>
+                          R$ {Number(product.retail_price).toFixed(2)}
+                        </span>
                       </div>
                     </button>
                   </div>
