@@ -114,13 +114,26 @@ export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMa
     });
   };
 
+  const renderHistoryDialog = () => (
+    <ConsignadoClienteHistoricoDialog
+      open={!!historyCart}
+      onOpenChange={o => { if (!o) setHistoryCart(null); }}
+      clienteId={historyCart?.clienteId || null}
+      clienteLabel={historyCart ? `${historyCart.clienteLoja}${historyCart.clienteNome && historyCart.clienteNome !== historyCart.clienteLoja ? ` · ${historyCart.clienteNome}` : ""}` : ""}
+      consignadosDoCliente={historyCart ? (allByClient.get(historyCart.clienteId || "__sem_cliente__") || []) : []}
+    />
+  );
+
   if (carts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border border-dashed rounded-lg">
-        <Package className="h-10 w-10 mb-2 opacity-30" />
-        <p className="text-ui font-medium">Nenhum carrinho de consignação aberto</p>
-        <p className="text-caption mt-1">Inicie uma nova consignação no PDV para criar um carrinho de cliente.</p>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border border-dashed rounded-lg">
+          <Package className="h-10 w-10 mb-2 opacity-30" />
+          <p className="text-ui font-medium">Nenhum carrinho de consignação aberto</p>
+          <p className="text-caption mt-1">Inicie uma nova consignação no PDV para criar um carrinho de cliente.</p>
+        </div>
+        {renderHistoryDialog()}
+      </>
     );
   }
 
