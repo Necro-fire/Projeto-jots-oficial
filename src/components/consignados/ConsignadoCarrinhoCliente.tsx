@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, User, Package, ShoppingCart, RotateCcw, ArrowLeftRight, Pencil, Plus, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronRight, User, Package, ShoppingCart, RotateCcw, ArrowLeftRight, Pencil, Plus, CheckCircle2, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useNavigate } from "react-router-dom";
 import type { Consignado } from "@/hooks/useConsignados";
+import { ConsignadoClienteHistoricoDialog } from "./ConsignadoClienteHistoricoDialog";
 
 interface Props {
   items: Consignado[];
