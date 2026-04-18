@@ -85,10 +85,12 @@ export default function PDV() {
   useEffect(() => {
     const cm = (location.state as any)?.consignacaoMode;
     const fid = (location.state as any)?.filialId;
+    const pc = (location.state as any)?.prefilledClient;
     if (cm) {
       setConsignacaoMode(true);
       if (fid && selectedFilial !== fid) setSelectedFilial(fid);
-      toast.info("Modo Consignação ativado — produtos não serão cobrados");
+      if (pc) setSelectedClient(pc);
+      toast.info("Modo Consignação ativado — produtos não serão cobrados nem recebem desconto");
       navigate(location.pathname, { replace: true, state: { _consumed: true } });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
