@@ -17,6 +17,7 @@ import { ConsignadoCarrinhoCliente } from "@/components/consignados/ConsignadoCa
 import { EditConsignadoDialog } from "@/components/consignados/EditConsignadoDialog";
 import { ConsignadoHistoricoDialog } from "@/components/consignados/ConsignadoHistoricoDialog";
 import { ConsignadoTrocaDialog } from "@/components/consignados/ConsignadoTrocaDialog";
+import { ConsignadoDevolucaoDialog } from "@/components/consignados/ConsignadoDevolucaoDialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   AlertDialog,
