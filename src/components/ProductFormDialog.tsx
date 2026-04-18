@@ -184,8 +184,15 @@ export function ProductFormDialog({
       setDuplicateInfo(null);
     } else {
       resetForm();
+      // Aplicar presets vindos do fluxo de compra (novo produto)
+      if (open) {
+        if (presetFilialId) setFilial(presetFilialId);
+        if (typeof presetQuantidade === "number") setQuantidade(String(presetQuantidade));
+        if (typeof presetCusto === "number") setCusto(presetCusto);
+        if (presetName) setName(presetName);
+      }
     }
-  }, [product, open, selectedFilial, filialLocked]);
+  }, [product, open, selectedFilial, filialLocked, presetFilialId, presetQuantidade, presetCusto, presetName]);
 
   const resetForm = () => {
     setClassificacaoProduto("");
