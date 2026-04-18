@@ -636,6 +636,7 @@ export default function PDV() {
           </Button>
         </div>
       )}
+      <div className="flex flex-1 overflow-hidden">
         {/* Left - Product Grid */}
         <div className="flex-[3] flex flex-col border-r overflow-hidden">
           <div className="p-4 pb-2 space-y-2 shrink-0">
