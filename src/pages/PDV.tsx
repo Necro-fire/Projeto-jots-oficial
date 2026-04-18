@@ -865,7 +865,14 @@ export default function PDV() {
                     setPaymentMethod(method);
                     setCreditCardInfo(null);
                     setBoletoInfo(null);
-                    if (method === "cartao" && cart.length > 0) {
+                    if (method === "consignado") {
+                      // Auto-activate consignment mode and clear payment selection
+                      setConsignacaoMode(true);
+                      setPaymentMethod("");
+                      setIsSplitPayment(false);
+                      setPaymentEntries([]);
+                      toast.info("Modo Consignação ativado — Produtos consignados não recebem descontos até a finalização da venda.", { duration: 5000 });
+                    } else if (method === "cartao" && cart.length > 0) {
                       setShowCreditCardModal(true);
                     } else if (method === "boleto" && cart.length > 0) {
                       setShowBoletoModal(true);
