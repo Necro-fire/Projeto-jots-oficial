@@ -31,8 +31,15 @@ export default function ProdutosConsignados() {
   const { data: items, loading } = useConsignados();
   const { data: clients } = useClients();
   const { user, profile } = useAuth();
-  const { selectedFilial } = useFilial();
+  const { selectedFilial, setSelectedFilial, filiais, isFilialRestricted } = useFilial();
   const navigate = useNavigate();
+
+  // Force a single-filial selection: consignment cannot run on "all"
+  useEffect(() => {
+    if (selectedFilial === "all" && !isFilialRestricted && filiais.length > 0) {
+      setSelectedFilial(filiais[0].id);
+    }
+  }, [selectedFilial, isFilialRestricted, filiais, setSelectedFilial]);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -41,12 +48,19 @@ export default function ProdutosConsignados() {
   const [dateTo, setDateTo] = useState("");
   const [trocadosCount, setTrocadosCount] = useState(0);
 
-  const [showNovo, setShowNovo] = useState(false);
   const [editingItem, setEditingItem] = useState<Consignado | null>(null);
   const [historicoItem, setHistoricoItem] = useState<Consignado | null>(null);
   const [trocaItem, setTrocaItem] = useState<Consignado | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ item: Consignado; action: "vendido" | "devolvido" } | null>(null);
   const [deletingItem, setDeletingItem] = useState<Consignado | null>(null);
+
+  const handleNovoConsignado = () => {
+    if (selectedFilial === "all") {
+      toast.error("Selecione uma filial específica antes de iniciar uma consignação");
+      return;
+    }
+    navigate("/pdv", { state: { consignacaoMode: true, filialId: selectedFilial } });
+  };
 
   // Fetch trocas count for chart
   useEffect(() => {
@@ -163,14 +177,14 @@ export default function ProdutosConsignados() {
 
   return (
     <div>
-      <FilialSelector />
+      <FilialSelector hideAll />
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-title font-semibold tracking-tighter">Produtos Consignados</h1>
-            <p className="text-ui text-muted-foreground">{items.length} registros</p>
+            <p className="text-ui text-muted-foreground">{items.length} registros · Filial selecionada</p>
           </div>
-          <Button onClick={() => setShowNovo(true)} className="gap-1.5">
+          <Button onClick={handleNovoConsignado} className="gap-1.5">
             <Plus className="h-4 w-4" />
             Novo Consignado
           </Button>
@@ -232,8 +246,6 @@ export default function ProdutosConsignados() {
           />
         )}
       </div>
-
-      <NovoConsignadoDialog open={showNovo} onOpenChange={setShowNovo} />
 
       <EditConsignadoDialog
         open={!!editingItem}
