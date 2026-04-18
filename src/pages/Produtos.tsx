@@ -119,9 +119,10 @@ export default function Produtos() {
     });
   };
 
-  // Open WhatsApp (app on mobile, web on desktop) WITHOUT any pre-filled message
+  // Open the correct WhatsApp target for the current device
   const openWhatsApp = () => {
-    window.open("https://wa.me/", "_blank", "noopener,noreferrer");
+    const url = isMobile ? "https://wa.me/" : "https://web.whatsapp.com/";
+    return window.open(url, "_blank", "noopener,noreferrer");
   };
 
   // Generate a ZIP from the given files and trigger automatic download
