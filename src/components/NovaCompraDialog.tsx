@@ -286,7 +286,10 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {fornecedores.map(f => (
+                  {fornecedoresAtivos.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum fornecedor ativo</div>
+                  )}
+                  {fornecedoresAtivos.map(f => (
                     <SelectItem key={f.id} value={f.id}>
                       {f.codigo} — {f.nome}
                     </SelectItem>
@@ -300,9 +303,27 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
             </div>
           </div>
 
-          <div>
-            <Label>Descrição</Label>
-            <Input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descrição da compra..." />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Forma de Pagamento *</Label>
+              <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="pix">PIX</SelectItem>
+                  <SelectItem value="debito">Cartão de Débito</SelectItem>
+                  <SelectItem value="credito">Cartão de Crédito</SelectItem>
+                  <SelectItem value="boleto">Boleto</SelectItem>
+                  <SelectItem value="transferencia">Transferência</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Descrição</Label>
+              <Input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descrição da compra..." />
+            </div>
           </div>
 
           <div>
