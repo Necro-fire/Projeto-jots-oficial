@@ -249,7 +249,7 @@ export default function ProdutosConsignados() {
                 items={items}
                 filialId={selectedFilial}
                 onMarkVendido={handleVender}
-                onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
+                onMarkDevolvido={item => setDevolucaoItem(item)}
                 onTrocar={item => setTrocaItem(item)}
                 onEdit={item => setEditingItem(item)}
               />
@@ -258,7 +258,7 @@ export default function ProdutosConsignados() {
               <ConsignadoList
                 items={filtered}
                 onMarkVendido={handleVender}
-                onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
+                onMarkDevolvido={item => setDevolucaoItem(item)}
                 onTrocar={item => setTrocaItem(item)}
                 onHistorico={item => setHistoricoItem(item)}
                 onEdit={item => setEditingItem(item)}
