@@ -77,9 +77,11 @@ export default function PDV() {
   const location = useLocation();
   const navigate = useNavigate();
   const [pendingConsignadoId, setPendingConsignadoId] = useState<string | null>(null);
+  const [pendingConsignadoIds, setPendingConsignadoIds] = useState<string[]>([]);
   const consignadoLoadedRef = useRef(false);
   const [consignacaoMode, setConsignacaoMode] = useState(false);
   const [submittingConsignacao, setSubmittingConsignacao] = useState(false);
+  const [conversionBanner, setConversionBanner] = useState(false);
 
   // Detect consignment mode from navigation state
   useEffect(() => {
