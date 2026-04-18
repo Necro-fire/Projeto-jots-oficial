@@ -433,6 +433,49 @@ export default function PDV() {
     }
   };
 
+  // ===== Consignment Mode: register items as consignados (no payment, no caixa) =====
+  const finalizeConsignacao = async () => {
+    if (cart.length === 0) { toast.error("Adicione produtos à sacola"); return; }
+    if (selectedFilial === "all") { toast.error("Selecione uma filial específica"); return; }
+
+    setSubmittingConsignacao(true);
+    try {
+      const grouped = new Map<string, { product: DbProduct; qty: number }>();
+      for (const item of cart) {
+        const g = grouped.get(item.product.id);
+        if (g) g.qty++;
+        else grouped.set(item.product.id, { product: item.product, qty: 1 });
+      }
+
+      let count = 0;
+      for (const { product, qty } of grouped.values()) {
+        await createConsignado({
+          produto_id: product.id,
+          cliente_id: selectedClient || null,
+          filial_id: selectedFilial,
+          quantidade: qty,
+          valor_unitario: Number(product.retail_price),
+          vendedor_nome: profile?.nome || user?.email || "",
+          observacoes: "",
+          usuario_id: user?.id || "",
+          usuario_nome: profile?.nome || "",
+        });
+        count++;
+      }
+
+      toast.success(`${count} ${count === 1 ? "produto consignado" : "produtos consignados"} registrado(s)!`);
+
+      setCart([]);
+      setSelectedClient("");
+      setConsignacaoMode(false);
+      navigate("/produtos-consignados");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao registrar consignação");
+    } finally {
+      setSubmittingConsignacao(false);
+    }
+  };
+
   // Block navigation when cart has items
   const blocker = useBlocker(cart.length > 0);
 
