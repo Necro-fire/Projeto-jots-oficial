@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Trash2, ShoppingCart, Barcode, Keyboard, Tag, Eye } from "lucide-react";
+import { Trash2, ShoppingCart, Barcode, Keyboard, Tag, Eye, PackageCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { FilialSelector } from "@/components/FilialSelector";
 import { useProducts, useClients, createVenda, type DbProduct } from "@/hooks/useSupabaseData";
 import { useDescontosAtacado, type DescontoAtacado } from "@/hooks/useDescontosAtacado";
+import { createConsignado } from "@/hooks/useConsignados";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
