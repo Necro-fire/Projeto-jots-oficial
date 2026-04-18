@@ -33,6 +33,7 @@ interface ClienteCart {
 export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMarkDevolvido, onTrocar, onEdit }: Props) {
   const navigate = useNavigate();
   const [openClients, setOpenClients] = useState<Set<string>>(new Set());
+  const [historyCart, setHistoryCart] = useState<ClienteCart | null>(null);
 
   const carts = useMemo<ClienteCart[]>(() => {
     const onlyActive = items.filter(i => i.status === "consignado");
