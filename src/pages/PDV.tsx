@@ -535,7 +535,9 @@ export default function PDV() {
             <PackageCheck className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
             <div className="min-w-0">
               <p className="text-ui font-semibold text-amber-900 dark:text-amber-200">Modo Consignação ativado</p>
-              <p className="text-caption text-amber-700 dark:text-amber-300/80">Produtos serão entregues sem cobrança. Venda confirmada posteriormente.</p>
+              <p className="text-caption text-amber-700 dark:text-amber-300/80">
+                ⚠️ Produtos consignados <strong>não recebem descontos</strong> até a finalização da venda. Esta entrega é condicional — não é uma venda definitiva.
+              </p>
             </div>
           </div>
           <Button
