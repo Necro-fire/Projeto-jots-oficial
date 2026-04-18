@@ -215,6 +215,90 @@ export async function updateConsignadoStatus(
   }
 }
 
+/**
+ * Partial return: returns N units of a consignado.
+ * If N == total, marks it as devolvido.
+ * If N < total, reduces the original quantity and creates a sibling 'devolvido' record for traceability.
+ * Restores stock for N units.
+ */
+export async function devolverConsignadoParcial(params: {
+  consignado_id: string;
+  quantidade_devolver: number;
+  produto_id: string;
+  filial_id: string;
+  valor_unitario: number;
+  cliente_id: string | null;
+  vendedor_nome: string;
+  observacoes?: string;
+  usuario_id: string;
+  usuario_nome: string;
+  quantidade_total: number;
+}) {
+  const { consignado_id, quantidade_devolver, quantidade_total } = params;
+  if (quantidade_devolver <= 0) throw new Error("Quantidade inválida");
+  if (quantidade_devolver > quantidade_total) throw new Error("Quantidade maior que o disponível");
+
+  const isFull = quantidade_devolver === quantidade_total;
+
+  if (isFull) {
+    await (supabase as any)
+      .from("consignados")
+      .update({ status: "devolvido" })
+      .eq("id", consignado_id);
+  } else {
+    const novaQty = quantidade_total - quantidade_devolver;
+    const novoTotal = novaQty * params.valor_unitario;
+    await (supabase as any)
+      .from("consignados")
+      .update({ quantidade: novaQty, valor_total: novoTotal })
+      .eq("id", consignado_id);
+
+    // Create sibling devolvido record for history/traceability
+    await (supabase as any).from("consignados").insert({
+      produto_id: params.produto_id,
+      cliente_id: params.cliente_id,
+      filial_id: params.filial_id,
+      quantidade: quantidade_devolver,
+      valor_unitario: params.valor_unitario,
+      valor_total: quantidade_devolver * params.valor_unitario,
+      status: "devolvido",
+      vendedor_nome: params.vendedor_nome,
+      observacoes: `Devolução parcial de ${consignado_id}`,
+    });
+  }
+
+  // Restore stock
+  const { data: estoque } = await (supabase as any)
+    .from("estoque")
+    .select("id, quantidade")
+    .eq("produto_id", params.produto_id)
+    .eq("filial_id", params.filial_id)
+    .maybeSingle();
+
+  if (estoque) {
+    const newQty = estoque.quantidade + quantidade_devolver;
+    await (supabase as any).from("estoque").update({ quantidade: newQty }).eq("id", estoque.id);
+    await (supabase as any).from("produtos").update({ stock: newQty }).eq("id", params.produto_id);
+  } else {
+    await (supabase as any).from("estoque").insert({
+      produto_id: params.produto_id,
+      filial_id: params.filial_id,
+      quantidade: quantidade_devolver,
+    });
+    await (supabase as any).from("produtos").update({ stock: quantidade_devolver }).eq("id", params.produto_id);
+  }
+
+  await (supabase as any).from("consignado_historico").insert({
+    consignado_id,
+    acao: isFull ? "devolucao_total" : "devolucao_parcial",
+    detalhes: { quantidade_devolvida: quantidade_devolver, restante: quantidade_total - quantidade_devolver },
+    usuario_id: params.usuario_id,
+    usuario_nome: params.usuario_nome,
+  });
+
+  return { devolvidoQty: quantidade_devolver, restante: quantidade_total - quantidade_devolver };
+}
+
 export async function createConsignadoTroca(params: {
   consignado_original_id: string;
   novo_produto_id: string;
@@ -228,18 +312,40 @@ export async function createConsignadoTroca(params: {
   original_produto_id: string;
   original_quantidade: number;
   original_valor_total: number;
+  /** quantity of the ORIGINAL consignado being exchanged. If less than original_quantidade, the rest stays consignado. Defaults to original_quantidade. */
+  troca_quantidade?: number;
+  /** required when partial: original unit price to compute the remainder */
+  original_valor_unitario?: number;
 }) {
+  const trocaQty = params.troca_quantidade ?? params.original_quantidade;
+  if (trocaQty <= 0 || trocaQty > params.original_quantidade) {
+    throw new Error("Quantidade a trocar inválida");
+  }
+  const isFull = trocaQty === params.original_quantidade;
+  const valorUnitOrig = Number(params.original_valor_unitario ?? (params.original_valor_total / params.original_quantidade));
+
+  // Value of the portion being exchanged
+  const valorParcialOriginal = isFull ? Number(params.original_valor_total) : trocaQty * valorUnitOrig;
+
   const novo_valor_total = params.novo_quantidade * params.novo_valor_unitario;
-  const diferenca = novo_valor_total - params.original_valor_total;
+  const diferenca = novo_valor_total - valorParcialOriginal;
   const tipo_diferenca = diferenca === 0 ? "igual" : diferenca > 0 ? "cliente_paga" : "credito";
 
-  // Mark original as devolvido
-  await (supabase as any)
-    .from("consignados")
-    .update({ status: "devolvido" })
-    .eq("id", params.consignado_original_id);
+  // Update or split original
+  if (isFull) {
+    await (supabase as any)
+      .from("consignados")
+      .update({ status: "devolvido" })
+      .eq("id", params.consignado_original_id);
+  } else {
+    const restante = params.original_quantidade - trocaQty;
+    await (supabase as any)
+      .from("consignados")
+      .update({ quantidade: restante, valor_total: restante * valorUnitOrig })
+      .eq("id", params.consignado_original_id);
+  }
 
-  // Restore original stock
+  // Restore stock for the exchanged portion of the original product
   const { data: estoqueOrig } = await (supabase as any)
     .from("estoque")
     .select("id, quantidade")
@@ -248,7 +354,7 @@ export async function createConsignadoTroca(params: {
     .maybeSingle();
 
   if (estoqueOrig) {
-    const newQty = estoqueOrig.quantidade + params.original_quantidade;
+    const newQty = estoqueOrig.quantidade + trocaQty;
     await (supabase as any).from("estoque").update({ quantidade: newQty }).eq("id", estoqueOrig.id);
     await (supabase as any).from("produtos").update({ stock: newQty }).eq("id", params.original_produto_id);
   }
@@ -292,14 +398,15 @@ export async function createConsignadoTroca(params: {
     tipo_diferenca,
     usuario_id: params.usuario_id,
     usuario_nome: params.usuario_nome,
+    observacoes: isFull ? "" : `Troca parcial: ${trocaQty} de ${params.original_quantidade}`,
   });
 
   // Log history on both
   await (supabase as any).from("consignado_historico").insert([
     {
       consignado_id: params.consignado_original_id,
-      acao: "troca",
-      detalhes: { trocado_por: novo.codigo, diferenca, tipo_diferenca },
+      acao: isFull ? "troca" : "troca_parcial",
+      detalhes: { trocado_por: novo.codigo, diferenca, tipo_diferenca, qty_trocada: trocaQty, total_original: params.original_quantidade },
       usuario_id: params.usuario_id,
       usuario_nome: params.usuario_nome,
     },
@@ -312,5 +419,5 @@ export async function createConsignadoTroca(params: {
     },
   ]);
 
-  return { novo, diferenca, tipo_diferenca };
+  return { novo, diferenca, tipo_diferenca, parcial: !isFull };
 }

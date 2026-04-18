@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { NumericStepper } from "@/components/ui/numeric-stepper";
 import { toast } from "sonner";
 import { createConsignadoTroca, type Consignado } from "@/hooks/useConsignados";
 import { useProducts } from "@/hooks/useSupabaseData";
@@ -22,8 +23,14 @@ export function ConsignadoTrocaDialog({ open, onOpenChange, item }: Props) {
 
   const [novoProdutoId, setNovoProdutoId] = useState("");
   const [novaQuantidade, setNovaQuantidade] = useState(1);
+  const [trocaQuantidade, setTrocaQuantidade] = useState(1);
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Reset trocaQuantidade when item changes
+  useEffect(() => {
+    if (item) setTrocaQuantidade(item.quantidade);
+  }, [item?.id, item?.quantidade]);
 
   const activeProducts = products.filter(p => p.status === "active" && p.stock > 0 && p.id !== item?.produto_id);
   const filtered = search
@@ -31,12 +38,17 @@ export function ConsignadoTrocaDialog({ open, onOpenChange, item }: Props) {
     : activeProducts.slice(0, 30);
 
   const novoProduto = products.find(p => p.id === novoProdutoId);
-
+  const valorUnitOrig = item ? Number(item.valor_unitario) : 0;
+  const valorParcialOriginal = trocaQuantidade * valorUnitOrig;
   const novoTotal = novoProduto ? novaQuantidade * Number(novoProduto.retail_price) : 0;
-  const diferenca = item ? novoTotal - Number(item.valor_total) : 0;
+  const diferenca = novoTotal - valorParcialOriginal;
 
   const handleSubmit = async () => {
     if (!item || !novoProdutoId) { toast.error("Selecione o novo produto"); return; }
+    if (trocaQuantidade <= 0 || trocaQuantidade > item.quantidade) {
+      toast.error(`Quantidade a trocar deve estar entre 1 e ${item.quantidade}`);
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -53,15 +65,18 @@ export function ConsignadoTrocaDialog({ open, onOpenChange, item }: Props) {
         original_produto_id: item.produto_id,
         original_quantidade: item.quantidade,
         original_valor_total: Number(item.valor_total),
+        original_valor_unitario: valorUnitOrig,
+        troca_quantidade: trocaQuantidade,
       });
 
-      const msg = result.tipo_diferenca === "igual"
-        ? "Troca realizada sem diferença de valor!"
+      const baseMsg = result.parcial ? "Troca parcial registrada." : "Troca total registrada.";
+      const diffMsg = result.tipo_diferenca === "igual"
+        ? " Sem diferença de valor."
         : result.tipo_diferenca === "cliente_paga"
-          ? `Troca realizada. Cliente deve pagar: R$ ${result.diferenca.toFixed(2)}`
-          : `Troca realizada. Crédito gerado: R$ ${Math.abs(result.diferenca).toFixed(2)}`;
+          ? ` Cliente deve pagar: R$ ${Math.abs(result.diferenca).toFixed(2)}`
+          : ` Crédito gerado: R$ ${Math.abs(result.diferenca).toFixed(2)}`;
 
-      toast.success(msg);
+      toast.success(baseMsg + diffMsg);
       onOpenChange(false);
       setNovoProdutoId("");
       setSearch("");
@@ -83,10 +98,30 @@ export function ConsignadoTrocaDialog({ open, onOpenChange, item }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="p-3 rounded-md bg-muted text-sm">
+          <div className="p-3 rounded-md bg-muted text-sm space-y-1">
             <p className="font-medium">Produto atual:</p>
             <p>{item.produto_referencia || item.produto_code} — {item.produto_model}</p>
-            <p>{item.quantidade} un. · R$ {Number(item.valor_total).toFixed(2)}</p>
+            <p className="tabular-nums">{item.quantidade} un. · R$ {valorUnitOrig.toFixed(2)} cada · Total R$ {Number(item.valor_total).toFixed(2)}</p>
+          </div>
+
+          <div className="rounded-md border p-3 space-y-2">
+            <Label className="text-ui">Quantidade a substituir</Label>
+            <div className="flex items-center justify-between gap-3">
+              <NumericStepper
+                value={trocaQuantidade}
+                onChange={setTrocaQuantidade}
+                min={1}
+                max={item.quantidade}
+              />
+              <span className="text-caption text-muted-foreground">
+                de {item.quantidade} disponíveis · valor R$ {valorParcialOriginal.toFixed(2)}
+              </span>
+            </div>
+            {trocaQuantidade < item.quantidade && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-300/80">
+                Os {item.quantidade - trocaQuantidade} restantes continuarão consignados.
+              </p>
+            )}
           </div>
 
           <div>
@@ -123,13 +158,14 @@ export function ConsignadoTrocaDialog({ open, onOpenChange, item }: Props) {
           </div>
 
           <div>
-            <Label>Quantidade</Label>
+            <Label>Quantidade do novo produto</Label>
             <Input type="number" min={1} value={novaQuantidade} onChange={e => setNovaQuantidade(Number(e.target.value))} />
           </div>
 
           {novoProduto && (
             <div className="p-3 rounded-md border space-y-1">
-              <p className="text-sm">Novo total: <strong>R$ {novoTotal.toFixed(2)}</strong></p>
+              <p className="text-sm">Novo total: <strong className="tabular-nums">R$ {novoTotal.toFixed(2)}</strong></p>
+              <p className="text-caption text-muted-foreground tabular-nums">vs valor substituído: R$ {valorParcialOriginal.toFixed(2)}</p>
               <div className="flex items-center gap-2">
                 <span className="text-sm">Diferença:</span>
                 {diferenca === 0 ? (

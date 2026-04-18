@@ -17,6 +17,7 @@ import { ConsignadoCarrinhoCliente } from "@/components/consignados/ConsignadoCa
 import { EditConsignadoDialog } from "@/components/consignados/EditConsignadoDialog";
 import { ConsignadoHistoricoDialog } from "@/components/consignados/ConsignadoHistoricoDialog";
 import { ConsignadoTrocaDialog } from "@/components/consignados/ConsignadoTrocaDialog";
+import { ConsignadoDevolucaoDialog } from "@/components/consignados/ConsignadoDevolucaoDialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -53,6 +54,7 @@ export default function ProdutosConsignados() {
   const [editingItem, setEditingItem] = useState<Consignado | null>(null);
   const [historicoItem, setHistoricoItem] = useState<Consignado | null>(null);
   const [trocaItem, setTrocaItem] = useState<Consignado | null>(null);
+  const [devolucaoItem, setDevolucaoItem] = useState<Consignado | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ item: Consignado; action: "vendido" | "devolvido" } | null>(null);
   const [deletingItem, setDeletingItem] = useState<Consignado | null>(null);
 
@@ -247,7 +249,7 @@ export default function ProdutosConsignados() {
                 items={items}
                 filialId={selectedFilial}
                 onMarkVendido={handleVender}
-                onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
+                onMarkDevolvido={item => setDevolucaoItem(item)}
                 onTrocar={item => setTrocaItem(item)}
                 onEdit={item => setEditingItem(item)}
               />
@@ -256,7 +258,7 @@ export default function ProdutosConsignados() {
               <ConsignadoList
                 items={filtered}
                 onMarkVendido={handleVender}
-                onMarkDevolvido={item => setConfirmAction({ item, action: "devolvido" })}
+                onMarkDevolvido={item => setDevolucaoItem(item)}
                 onTrocar={item => setTrocaItem(item)}
                 onHistorico={item => setHistoricoItem(item)}
                 onEdit={item => setEditingItem(item)}
@@ -284,6 +286,12 @@ export default function ProdutosConsignados() {
         open={!!trocaItem}
         onOpenChange={o => { if (!o) setTrocaItem(null); }}
         item={trocaItem}
+      />
+
+      <ConsignadoDevolucaoDialog
+        open={!!devolucaoItem}
+        onOpenChange={o => { if (!o) setDevolucaoItem(null); }}
+        item={devolucaoItem}
       />
 
       <AlertDialog open={!!confirmAction} onOpenChange={o => { if (!o) setConfirmAction(null); }}>

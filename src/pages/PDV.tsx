@@ -77,9 +77,11 @@ export default function PDV() {
   const location = useLocation();
   const navigate = useNavigate();
   const [pendingConsignadoId, setPendingConsignadoId] = useState<string | null>(null);
+  const [pendingConsignadoIds, setPendingConsignadoIds] = useState<string[]>([]);
   const consignadoLoadedRef = useRef(false);
   const [consignacaoMode, setConsignacaoMode] = useState(false);
   const [submittingConsignacao, setSubmittingConsignacao] = useState(false);
+  const [conversionBanner, setConversionBanner] = useState(false);
 
   // Detect consignment mode from navigation state
   useEffect(() => {
@@ -128,6 +130,47 @@ export default function PDV() {
     setPendingConsignadoId(fc.consignadoId);
 
     toast.success(`Produto consignado carregado: ${product.referencia || product.model}`);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, products, selectedFilial, setSelectedFilial, navigate, location.pathname]);
+
+  // Auto-load full client cart from "Converter em venda"
+  useEffect(() => {
+    const fcc = (location.state as any)?.fromCarrinhoConsignado;
+    if (!fcc || !products.length || consignadoLoadedRef.current) return;
+
+    const consignadosList = fcc.consignados as { consignadoId: string; produtoId: string; quantidade: number }[];
+    if (!consignadosList?.length) return;
+
+    consignadoLoadedRef.current = true;
+
+    if (fcc.filialId && selectedFilial !== fcc.filialId) {
+      setSelectedFilial(fcc.filialId);
+    }
+
+    const additions: CartItem[] = [];
+    const ids: string[] = [];
+    for (const c of consignadosList) {
+      const product = products.find(p => p.id === c.produtoId);
+      if (!product) continue;
+      const qty = Math.max(1, Number(c.quantidade) || 1);
+      for (let i = 0; i < qty; i++) {
+        additions.push({ cartId: nextCartId(), product });
+      }
+      ids.push(c.consignadoId);
+    }
+
+    if (additions.length === 0) {
+      toast.error("Nenhum produto do carrinho pôde ser carregado.");
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
+
+    setCart(prev => [...prev, ...additions]);
+    setSelectedClient(fcc.clienteId);
+    setPendingConsignadoIds(ids);
+    setConversionBanner(true);
+
+    toast.success(`${additions.length} ${additions.length === 1 ? "produto carregado" : "produtos carregados"}. Agora os produtos podem receber descontos, conforme as regras do sistema.`, { duration: 6000 });
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state, products, selectedFilial, setSelectedFilial, navigate, location.pathname]);
 
@@ -391,24 +434,32 @@ export default function PDV() {
 
       toast.success(`Venda finalizada! ${result.sale_code || '#' + result.number} — Total: R$ ${saleTotal.toFixed(2)}`);
 
-      // If sale originated from a consignado, mark it as sold and link to venda
-      if (pendingConsignadoId) {
+      // Mark linked consignados as sold (single-item path or full-cart conversion)
+      const consignadosToMark = pendingConsignadoIds.length > 0
+        ? pendingConsignadoIds
+        : (pendingConsignadoId ? [pendingConsignadoId] : []);
+
+      if (consignadosToMark.length > 0) {
         try {
           await (supabase as any)
             .from("consignados")
             .update({ status: "vendido", venda_id: result.id })
-            .eq("id", pendingConsignadoId);
-          await (supabase as any).from("consignado_historico").insert({
-            consignado_id: pendingConsignadoId,
+            .in("id", consignadosToMark);
+
+          const histRows = consignadosToMark.map(cid => ({
+            consignado_id: cid,
             acao: "venda_pdv",
-            detalhes: { venda_id: result.id, sale_code: result.sale_code },
+            detalhes: { venda_id: result.id, sale_code: result.sale_code, conversao_carrinho: pendingConsignadoIds.length > 0 },
             usuario_id: user?.id,
             usuario_nome: profile?.nome || "",
-          });
+          }));
+          await (supabase as any).from("consignado_historico").insert(histRows);
         } catch (e) {
-          console.error("Erro ao marcar consignado como vendido:", e);
+          console.error("Erro ao marcar consignados como vendidos:", e);
         }
         setPendingConsignadoId(null);
+        setPendingConsignadoIds([]);
+        setConversionBanner(false);
         consignadoLoadedRef.current = false;
       }
 
@@ -553,6 +604,35 @@ export default function PDV() {
             }}
           >
             Sair
+          </Button>
+        </div>
+      )}
+      {conversionBanner && !consignacaoMode && (
+        <div className="mx-4 mt-3 rounded-lg border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 px-4 py-2.5 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <PackageCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-ui font-semibold text-emerald-900 dark:text-emerald-200">Conversão de Consignação em Venda</p>
+              <p className="text-caption text-emerald-700 dark:text-emerald-300/80">
+                Agora os produtos podem receber <strong>descontos</strong>, conforme as regras do sistema. Finalize normalmente para concluir a venda.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-emerald-400 text-emerald-800 hover:bg-emerald-100 dark:text-emerald-200 dark:hover:bg-emerald-900/50 shrink-0"
+            onClick={() => {
+              if (!confirm("Cancelar conversão? A sacola será esvaziada e os consignados permanecerão no carrinho do cliente.")) return;
+              setCart([]);
+              setPendingConsignadoIds([]);
+              setConversionBanner(false);
+              consignadoLoadedRef.current = false;
+              setSelectedClient("");
+              toast.info("Conversão cancelada");
+            }}
+          >
+            Cancelar conversão
           </Button>
         </div>
       )}
