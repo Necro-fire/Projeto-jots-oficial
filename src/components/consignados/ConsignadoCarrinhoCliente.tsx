@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, User, Package, ShoppingCart, RotateCcw, ArrowLeftRight, Pencil, Plus, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronRight, User, Package, ShoppingCart, RotateCcw, ArrowLeftRight, Pencil, Plus, CheckCircle2, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useNavigate } from "react-router-dom";
 import type { Consignado } from "@/hooks/useConsignados";
+import { ConsignadoClienteHistoricoDialog } from "./ConsignadoClienteHistoricoDialog";
 
 interface Props {
   items: Consignado[];
@@ -32,6 +33,18 @@ interface ClienteCart {
 export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMarkDevolvido, onTrocar, onEdit }: Props) {
   const navigate = useNavigate();
   const [openClients, setOpenClients] = useState<Set<string>>(new Set());
+  const [historyCart, setHistoryCart] = useState<ClienteCart | null>(null);
+
+  // All consignados grouped by client (used for client-level history dialog)
+  const allByClient = useMemo(() => {
+    const map = new Map<string, Consignado[]>();
+    for (const item of items) {
+      const key = item.cliente_id || "__sem_cliente__";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    }
+    return map;
+  }, [items]);
 
   const carts = useMemo<ClienteCart[]>(() => {
     const onlyActive = items.filter(i => i.status === "consignado");
@@ -101,13 +114,26 @@ export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMa
     });
   };
 
+  const renderHistoryDialog = () => (
+    <ConsignadoClienteHistoricoDialog
+      open={!!historyCart}
+      onOpenChange={o => { if (!o) setHistoryCart(null); }}
+      clienteId={historyCart?.clienteId || null}
+      clienteLabel={historyCart ? `${historyCart.clienteLoja}${historyCart.clienteNome && historyCart.clienteNome !== historyCart.clienteLoja ? ` · ${historyCart.clienteNome}` : ""}` : ""}
+      consignadosDoCliente={historyCart ? (allByClient.get(historyCart.clienteId || "__sem_cliente__") || []) : []}
+    />
+  );
+
   if (carts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border border-dashed rounded-lg">
-        <Package className="h-10 w-10 mb-2 opacity-30" />
-        <p className="text-ui font-medium">Nenhum carrinho de consignação aberto</p>
-        <p className="text-caption mt-1">Inicie uma nova consignação no PDV para criar um carrinho de cliente.</p>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border border-dashed rounded-lg">
+          <Package className="h-10 w-10 mb-2 opacity-30" />
+          <p className="text-ui font-medium">Nenhum carrinho de consignação aberto</p>
+          <p className="text-caption mt-1">Inicie uma nova consignação no PDV para criar um carrinho de cliente.</p>
+        </div>
+        {renderHistoryDialog()}
+      </>
     );
   }
 
@@ -144,6 +170,16 @@ export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMa
                     <Badge variant="outline" className="text-caption tabular-nums">
                       R$ {cart.totalValor.toFixed(2)}
                     </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1 h-8"
+                      onClick={(e) => { e.stopPropagation(); setHistoryCart(cart); }}
+                      title="Ver histórico completo do cliente"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                      Histórico
+                    </Button>
                     {cart.clienteId && (
                       <>
                         <Button
@@ -228,6 +264,7 @@ export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMa
           </Collapsible>
         );
       })}
+      {renderHistoryDialog()}
     </div>
   );
 }
