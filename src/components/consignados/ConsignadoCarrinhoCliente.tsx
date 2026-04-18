@@ -35,6 +35,17 @@ export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMa
   const [openClients, setOpenClients] = useState<Set<string>>(new Set());
   const [historyCart, setHistoryCart] = useState<ClienteCart | null>(null);
 
+  // All consignados grouped by client (used for client-level history dialog)
+  const allByClient = useMemo(() => {
+    const map = new Map<string, Consignado[]>();
+    for (const item of items) {
+      const key = item.cliente_id || "__sem_cliente__";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    }
+    return map;
+  }, [items]);
+
   const carts = useMemo<ClienteCart[]>(() => {
     const onlyActive = items.filter(i => i.status === "consignado");
     const map = new Map<string, ClienteCart>();
