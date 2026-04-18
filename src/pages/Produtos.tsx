@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
-import { Plus, Package, Pencil, Trash2, ShoppingCart, Printer, Share2, ImageDown, ZoomIn, Eye } from "lucide-react";
+import { Plus, Package, Pencil, Trash2, ShoppingCart, Printer, ImageDown, ZoomIn, Eye } from "lucide-react";
+import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
 // productImageFooter is used at save-time in ProductFormDialog
 import JsBarcode from "jsbarcode";
 import JSZip from "jszip";
@@ -252,8 +253,8 @@ export default function Produtos() {
             <p className="text-ui text-muted-foreground">{filtered.length} produtos</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={handleExportAll} disabled={exporting}>
-              <Share2 className="h-4 w-4" />
+            <Button size="sm" variant="outline" className="gap-1.5 text-[#25D366] hover:text-[#25D366]" onClick={handleExportAll} disabled={exporting}>
+              <WhatsAppIcon className="h-4 w-4" />
               {exporting ? "Preparando..." : "Enviar por WhatsApp"}
             </Button>
             {canCreate && (
@@ -364,11 +365,11 @@ export default function Produtos() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-7 w-7 text-[#25D366] hover:text-[#25D366]"
                         title="Enviar imagem por WhatsApp"
                         onClick={(e) => { e.stopPropagation(); handleExportImage(product); }}
                       >
-                        <Share2 className="h-3.5 w-3.5" />
+                        <WhatsAppIcon className="h-3.5 w-3.5" />
                       </Button>
                     )}
                     <Button
