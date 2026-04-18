@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Plus, Package, Pencil, Trash2, ShoppingCart, Printer, Share2, ImageDown, ZoomIn, Eye } from "lucide-react";
 // productImageFooter is used at save-time in ProductFormDialog
 import JsBarcode from "jsbarcode";
+import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
