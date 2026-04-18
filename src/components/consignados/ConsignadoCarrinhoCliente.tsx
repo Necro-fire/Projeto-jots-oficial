@@ -157,6 +157,16 @@ export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMa
                     <Badge variant="outline" className="text-caption tabular-nums">
                       R$ {cart.totalValor.toFixed(2)}
                     </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1 h-8"
+                      onClick={(e) => { e.stopPropagation(); setHistoryCart(cart); }}
+                      title="Ver histórico completo do cliente"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                      Histórico
+                    </Button>
                     {cart.clienteId && (
                       <>
                         <Button
