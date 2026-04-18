@@ -78,6 +78,21 @@ export default function PDV() {
   const navigate = useNavigate();
   const [pendingConsignadoId, setPendingConsignadoId] = useState<string | null>(null);
   const consignadoLoadedRef = useRef(false);
+  const [consignacaoMode, setConsignacaoMode] = useState(false);
+  const [submittingConsignacao, setSubmittingConsignacao] = useState(false);
+
+  // Detect consignment mode from navigation state
+  useEffect(() => {
+    const cm = (location.state as any)?.consignacaoMode;
+    const fid = (location.state as any)?.filialId;
+    if (cm) {
+      setConsignacaoMode(true);
+      if (fid && selectedFilial !== fid) setSelectedFilial(fid);
+      toast.info("Modo Consignação ativado — produtos não serão cobrados");
+      navigate(location.pathname, { replace: true, state: { _consumed: true } });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: products } = useProducts();
   const { data: clients } = useClients();
