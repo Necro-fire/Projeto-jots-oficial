@@ -5,10 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Globe, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFilial } from "@/contexts/FilialContext";
 import { toast } from "sonner";
-import { maskCpfCnpj, maskCelular, maskPhone, ESTADOS_BR } from "@/lib/masks";
+import { maskCpfCnpj, maskCelular, ESTADOS_BR } from "@/lib/masks";
 
 interface Props {
   open: boolean;
@@ -24,6 +26,7 @@ const empty = {
 
 export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: Props) {
   const [form, setForm] = useState(empty);
+  const [isGlobal, setIsGlobal] = useState(false);
   const [saving, setSaving] = useState(false);
   const { selectedFilial } = useFilial();
 
@@ -39,10 +42,13 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
         estado: editing.estado || "",
         observacoes: editing.observacoes || "",
       });
+      setIsGlobal(editing.filial_id === "all");
     } else {
       setForm(empty);
+      // Se está visualizando "Todas as filiais", default para global
+      setIsGlobal(selectedFilial === "all");
     }
-  }, [editing, open]);
+  }, [editing, open, selectedFilial]);
 
   const handleSave = async () => {
     if (!form.nome.trim()) {
@@ -50,9 +56,20 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
       return;
     }
 
-    if (!editing?.id && selectedFilial === "all") {
-      toast.error("Selecione uma filial específica para cadastrar o fornecedor.");
-      return;
+    // Determinar filial_id final
+    let targetFilial: string;
+    if (isGlobal) {
+      targetFilial = "all";
+    } else if (editing?.id) {
+      // Edição local: mantém a filial atual do registro (ou usa selectedFilial se vier de global → local)
+      targetFilial = editing.filial_id === "all" ? (selectedFilial !== "all" ? selectedFilial : "1") : editing.filial_id;
+    } else {
+      // Novo local: precisa de uma filial específica
+      if (selectedFilial === "all") {
+        toast.error("Selecione uma filial específica para cadastrar fornecedor local, ou marque como Global.");
+        return;
+      }
+      targetFilial = selectedFilial;
     }
 
     setSaving(true);
@@ -60,16 +77,16 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
       if (editing?.id) {
         const { error } = await (supabase as any)
           .from("fornecedores")
-          .update({ ...form })
+          .update({ ...form, filial_id: targetFilial })
           .eq("id", editing.id);
         if (error) throw error;
-        toast.success("Fornecedor atualizado");
+        toast.success(isGlobal ? "Fornecedor global atualizado (todas as filiais)" : "Fornecedor atualizado");
       } else {
         const { error } = await (supabase as any)
           .from("fornecedores")
-          .insert({ ...form, filial_id: selectedFilial });
+          .insert({ ...form, filial_id: targetFilial });
         if (error) throw error;
-        toast.success("Fornecedor cadastrado");
+        toast.success(isGlobal ? "Fornecedor global cadastrado" : "Fornecedor cadastrado");
       }
       onSaved();
       onOpenChange(false);
@@ -87,6 +104,22 @@ export function FornecedorFormDialog({ open, onOpenChange, editing, onSaved }: P
           <DialogTitle>{editing ? "Editar Fornecedor" : "Novo Fornecedor"}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
+          <div className="flex items-center justify-between rounded-md border p-3 bg-muted/30">
+            <div className="flex items-center gap-2">
+              {isGlobal ? <Globe className="h-4 w-4 text-primary" /> : <Building2 className="h-4 w-4 text-muted-foreground" />}
+              <div>
+                <Label className="text-sm font-medium cursor-pointer" htmlFor="global-switch">
+                  {isGlobal ? "Fornecedor Global" : "Fornecedor Local"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {isGlobal
+                    ? "Vinculado a todas as filiais"
+                    : `Vinculado apenas à ${selectedFilial === "all" ? "filial selecionada" : "Filial " + selectedFilial}`}
+                </p>
+              </div>
+            </div>
+            <Switch id="global-switch" checked={isGlobal} onCheckedChange={setIsGlobal} />
+          </div>
           <div>
             <Label>Nome *</Label>
             <Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />

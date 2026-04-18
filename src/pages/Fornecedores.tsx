@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Truck, Search, Plus, Pencil, Trash2, Package, ShoppingCart, Eye, Receipt } from "lucide-react";
+import { Truck, Search, Plus, Pencil, Trash2, Package, ShoppingCart, Eye, Receipt, Globe, Building2 } from "lucide-react";
 import { FilialSelector } from "@/components/FilialSelector";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -178,6 +178,7 @@ export default function Fornecedores() {
                     <TableRow>
                       <TableHead>Código</TableHead>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Tipo</TableHead>
                       <TableHead>CNPJ/CPF</TableHead>
                       <TableHead>Cidade/UF</TableHead>
                       <TableHead>Telefone</TableHead>
@@ -186,10 +187,23 @@ export default function Fornecedores() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map(f => (
+                    {filtered.map(f => {
+                      const isGlobal = f.filial_id === "all";
+                      return (
                       <TableRow key={f.id}>
                         <TableCell className="font-mono text-xs">{f.codigo}</TableCell>
                         <TableCell className="font-medium">{f.nome}</TableCell>
+                        <TableCell>
+                          {isGlobal ? (
+                            <Badge variant="default" className="gap-1">
+                              <Globe className="h-3 w-3" /> Global
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="gap-1">
+                              <Building2 className="h-3 w-3" /> Filial {f.filial_id}
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell>{f.cnpj_cpf || "—"}</TableCell>
                         <TableCell>{f.cidade ? `${f.cidade}/${f.estado}` : "—"}</TableCell>
                         <TableCell>{f.telefone || "—"}</TableCell>
@@ -229,7 +243,7 @@ export default function Fornecedores() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    );})}
                   </TableBody>
                 </Table>
               </div>
