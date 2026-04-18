@@ -36,9 +36,28 @@ interface ProductFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product?: DbProduct | null;
+  /** Pré-define a filial (usado pelo fluxo de compra: filial do fornecedor ou "all" para global). */
+  presetFilialId?: string;
+  /** Pré-define a quantidade inicial (estoque inicial após a compra). */
+  presetQuantidade?: number;
+  /** Pré-define o custo unitário. */
+  presetCusto?: number;
+  /** Pré-define o nome/modelo do produto. */
+  presetName?: string;
+  /** Callback após salvar com sucesso, recebe os IDs criados (1 ou 3 quando filial=all). */
+  onSaved?: (produtoIds: string[]) => void;
 }
 
-export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDialogProps) {
+export function ProductFormDialog({
+  open,
+  onOpenChange,
+  product,
+  presetFilialId,
+  presetQuantidade,
+  presetCusto,
+  presetName,
+  onSaved,
+}: ProductFormDialogProps) {
   const { selectedFilial } = useFilial();
   const filialLocked = selectedFilial !== "all";
   const [classificacaoProduto, setClassificacaoProduto] = useState<ClassificacaoProduto | "">("");
@@ -165,8 +184,15 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
       setDuplicateInfo(null);
     } else {
       resetForm();
+      // Aplicar presets vindos do fluxo de compra (novo produto)
+      if (open) {
+        if (presetFilialId) setFilial(presetFilialId);
+        if (typeof presetQuantidade === "number") setQuantidade(String(presetQuantidade));
+        if (typeof presetCusto === "number") setCusto(presetCusto);
+        if (presetName) setName(presetName);
+      }
     }
-  }, [product, open, selectedFilial, filialLocked]);
+  }, [product, open, selectedFilial, filialLocked, presetFilialId, presetQuantidade, presetCusto, presetName]);
 
   const resetForm = () => {
     setClassificacaoProduto("");
@@ -439,6 +465,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
         toast.success("Produto atualizado com sucesso!");
       } else {
         const targetFilials = filial === "all" ? ["1", "2", "3"] : [filial];
+        const createdIds: string[] = [];
 
         for (const fId of targetFilials) {
           const codes = await generateProductCodes();
@@ -446,6 +473,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
 
           const { data: newProduct, error } = await (supabase as any).from("produtos").insert(baseData).select().single();
           if (error) throw error;
+          createdIds.push(newProduct.id);
 
           await (supabase as any).from("estoque").insert({
             produto_id: newProduct.id,
@@ -459,6 +487,8 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
               : `Produto cadastrado! Código de barras: ${codes.barcode}`
           );
         }
+
+        onSaved?.(createdIds);
       }
 
       resetForm();
