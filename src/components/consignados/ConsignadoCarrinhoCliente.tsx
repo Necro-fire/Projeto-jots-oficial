@@ -264,6 +264,7 @@ export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMa
           </Collapsible>
         );
       })}
+      {renderHistoryDialog()}
     </div>
   );
 }
