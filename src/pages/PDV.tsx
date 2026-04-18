@@ -133,7 +133,47 @@ export default function PDV() {
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state, products, selectedFilial, setSelectedFilial, navigate, location.pathname]);
 
-  const [selectedDiscountRules, setSelectedDiscountRules] = useState<DescontoAtacado[]>([]);
+  // Auto-load full client cart from "Converter em venda"
+  useEffect(() => {
+    const fcc = (location.state as any)?.fromCarrinhoConsignado;
+    if (!fcc || !products.length || consignadoLoadedRef.current) return;
+
+    const consignadosList = fcc.consignados as { consignadoId: string; produtoId: string; quantidade: number }[];
+    if (!consignadosList?.length) return;
+
+    consignadoLoadedRef.current = true;
+
+    if (fcc.filialId && selectedFilial !== fcc.filialId) {
+      setSelectedFilial(fcc.filialId);
+    }
+
+    const additions: CartItem[] = [];
+    const ids: string[] = [];
+    for (const c of consignadosList) {
+      const product = products.find(p => p.id === c.produtoId);
+      if (!product) continue;
+      const qty = Math.max(1, Number(c.quantidade) || 1);
+      for (let i = 0; i < qty; i++) {
+        additions.push({ cartId: nextCartId(), product });
+      }
+      ids.push(c.consignadoId);
+    }
+
+    if (additions.length === 0) {
+      toast.error("Nenhum produto do carrinho pôde ser carregado.");
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
+
+    setCart(prev => [...prev, ...additions]);
+    setSelectedClient(fcc.clienteId);
+    setPendingConsignadoIds(ids);
+    setConversionBanner(true);
+
+    toast.success(`${additions.length} ${additions.length === 1 ? "produto carregado" : "produtos carregados"}. Agora os produtos podem receber descontos, conforme as regras do sistema.`, { duration: 6000 });
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, products, selectedFilial, setSelectedFilial, navigate, location.pathname]);
+
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
   const [lastRuleSignature, setLastRuleSignature] = useState("");
 
