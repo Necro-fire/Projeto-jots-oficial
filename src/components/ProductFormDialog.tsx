@@ -465,6 +465,7 @@ export function ProductFormDialog({
         toast.success("Produto atualizado com sucesso!");
       } else {
         const targetFilials = filial === "all" ? ["1", "2", "3"] : [filial];
+        const createdIds: string[] = [];
 
         for (const fId of targetFilials) {
           const codes = await generateProductCodes();
@@ -472,6 +473,7 @@ export function ProductFormDialog({
 
           const { data: newProduct, error } = await (supabase as any).from("produtos").insert(baseData).select().single();
           if (error) throw error;
+          createdIds.push(newProduct.id);
 
           await (supabase as any).from("estoque").insert({
             produto_id: newProduct.id,
@@ -485,6 +487,8 @@ export function ProductFormDialog({
               : `Produto cadastrado! Código de barras: ${codes.barcode}`
           );
         }
+
+        onSaved?.(createdIds);
       }
 
       resetForm();
