@@ -145,15 +145,26 @@ export function ConsignadoCarrinhoCliente({ items, filialId, onMarkVendido, onMa
                       R$ {cart.totalValor.toFixed(2)}
                     </Badge>
                     {cart.clienteId && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1 h-8"
-                        onClick={(e) => { e.stopPropagation(); handleAdicionarMais(cart.clienteId); }}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Adicionar
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          className="gap-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={(e) => { e.stopPropagation(); handleConverterEmVenda(cart); }}
+                          title="Cliente decidiu ficar com os produtos — converter em venda no PDV"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Converter em venda
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 h-8"
+                          onClick={(e) => { e.stopPropagation(); handleAdicionarMais(cart.clienteId); }}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Adicionar
+                        </Button>
+                      </>
                     )}
                   </div>
                 </button>
