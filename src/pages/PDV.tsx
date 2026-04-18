@@ -703,7 +703,9 @@ export default function PDV() {
                       {g.ruleLabel && <p className="text-[10px] text-success">{g.ruleLabel}</p>}
                     </div>
                     <div className="flex flex-col items-end w-24">
-                      {g.ruleLabel ? (
+                      {consignacaoMode ? (
+                        <span className="text-ui font-medium tabular-nums text-muted-foreground line-through">R$ {g.totalOriginal.toFixed(2)}</span>
+                      ) : g.ruleLabel ? (
                         <>
                           <span className="text-caption tabular-nums text-muted-foreground line-through">R$ {g.totalOriginal.toFixed(2)}</span>
                           <span className="text-ui font-medium tabular-nums text-success">R$ {g.totalDiscounted.toFixed(2)}</span>
@@ -727,109 +729,149 @@ export default function PDV() {
           </div>
 
           <div className="p-4 border-t space-y-3 shrink-0">
-            <SplitPaymentPanel
-              total={subtotal}
-              isSplit={isSplitPayment}
-              onSplitChange={(split) => {
-                setIsSplitPayment(split);
-                setCreditCardInfo(null);
-                setBoletoInfo(null);
-              }}
-              singleMethod={paymentMethod}
-              onSingleMethodChange={(method) => {
-                setPaymentMethod(method);
-                setCreditCardInfo(null);
-                setBoletoInfo(null);
-                if (method === "cartao" && cart.length > 0) {
-                  setShowCreditCardModal(true);
-                } else if (method === "boleto" && cart.length > 0) {
-                  setShowBoletoModal(true);
-                }
-              }}
-              entries={paymentEntries}
-              onEntriesChange={setPaymentEntries}
-              onOpenInstallments={(entryId, entryAmount) => {
-                setSplitInstallmentEntryId(entryId);
-                setSplitInstallmentAmount(entryAmount);
-                setShowCreditCardModal(true);
-              }}
-              onOpenBoleto={(entryId, entryAmount) => {
-                setSplitBoletoEntryId(entryId);
-                setSplitBoletoAmount(entryAmount);
-                setShowBoletoModal(true);
-              }}
-            />
+            {consignacaoMode ? (
+              <>
+                <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 px-3 py-2.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-caption text-amber-800 dark:text-amber-200 font-medium">
+                    <PackageCheck className="h-3.5 w-3.5" />
+                    Entrega condicional — sem cobrança
+                  </div>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300/80">
+                    Os produtos sairão do estoque e ficarão registrados como consignados. Venda, troca ou devolução podem ser feitas depois.
+                  </p>
+                </div>
+                <Separator />
+                <div className="space-y-1">
+                  <div className="flex justify-between text-caption text-muted-foreground">
+                    <span>{cart.length} {cart.length === 1 ? "item" : "itens"}</span>
+                    <span>Cliente: {selectedClient ? "selecionado" : "opcional"}</span>
+                  </div>
+                  <div className="flex justify-between text-subhead font-semibold">
+                    <span>Valor referência</span>
+                    <span className="tabular-nums text-muted-foreground line-through">R$ {subtotalOriginal.toFixed(2)}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Nada será cobrado neste momento.</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 h-10" onClick={() => setCart([])}>
+                    Limpar
+                  </Button>
+                  <Button
+                    className="flex-1 h-10 bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={finalizeConsignacao}
+                    disabled={submittingConsignacao || cart.length === 0}
+                  >
+                    {submittingConsignacao ? "Registrando..." : "Registrar Consignação"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <SplitPaymentPanel
+                  total={subtotal}
+                  isSplit={isSplitPayment}
+                  onSplitChange={(split) => {
+                    setIsSplitPayment(split);
+                    setCreditCardInfo(null);
+                    setBoletoInfo(null);
+                  }}
+                  singleMethod={paymentMethod}
+                  onSingleMethodChange={(method) => {
+                    setPaymentMethod(method);
+                    setCreditCardInfo(null);
+                    setBoletoInfo(null);
+                    if (method === "cartao" && cart.length > 0) {
+                      setShowCreditCardModal(true);
+                    } else if (method === "boleto" && cart.length > 0) {
+                      setShowBoletoModal(true);
+                    }
+                  }}
+                  entries={paymentEntries}
+                  onEntriesChange={setPaymentEntries}
+                  onOpenInstallments={(entryId, entryAmount) => {
+                    setSplitInstallmentEntryId(entryId);
+                    setSplitInstallmentAmount(entryAmount);
+                    setShowCreditCardModal(true);
+                  }}
+                  onOpenBoleto={(entryId, entryAmount) => {
+                    setSplitBoletoEntryId(entryId);
+                    setSplitBoletoAmount(entryAmount);
+                    setShowBoletoModal(true);
+                  }}
+                />
 
-            {/* Show credit card / boleto info badge */}
-            {!isSplitPayment && paymentMethod === "cartao" && creditCardInfo && (
-              <div className="flex items-center justify-between text-caption bg-secondary rounded-md px-3 py-1.5">
-                <span className="text-muted-foreground">{creditCardInfo.installments}x de R$ {(creditCardInfo.finalTotal / creditCardInfo.installments).toFixed(2)} (total R$ {creditCardInfo.finalTotal.toFixed(2)})</span>
-                <button className="text-primary text-xs underline" onClick={() => setShowCreditCardModal(true)}>Alterar</button>
-              </div>
-            )}
-            {!isSplitPayment && paymentMethod === "boleto" && boletoInfo && (
-              <div className="flex items-center justify-between text-caption bg-secondary rounded-md px-3 py-1.5">
-                <span className="text-muted-foreground">{boletoInfo.installments}x a cada {boletoInfo.interval} dias</span>
-                <button className="text-primary text-xs underline" onClick={() => setShowBoletoModal(true)}>Alterar</button>
-              </div>
-            )}
-
-            <Separator />
-            <div className="space-y-1">
-              <div className="flex justify-between text-caption text-muted-foreground">
-                <span>{cart.length} {cart.length === 1 ? "item" : "itens"}</span>
-                {hasAnyWholesale && (
-                  <span className="text-success flex items-center gap-1">
-                    <Tag className="h-3 w-3" />
-                    Atacado aplicado
-                  </span>
+                {/* Show credit card / boleto info badge */}
+                {!isSplitPayment && paymentMethod === "cartao" && creditCardInfo && (
+                  <div className="flex items-center justify-between text-caption bg-secondary rounded-md px-3 py-1.5">
+                    <span className="text-muted-foreground">{creditCardInfo.installments}x de R$ {(creditCardInfo.finalTotal / creditCardInfo.installments).toFixed(2)} (total R$ {creditCardInfo.finalTotal.toFixed(2)})</span>
+                    <button className="text-primary text-xs underline" onClick={() => setShowCreditCardModal(true)}>Alterar</button>
+                  </div>
                 )}
-              </div>
-              {hasAnyWholesale && totalSaved > 0 && (
-                <div className="flex justify-between text-caption">
-                  <span className="text-muted-foreground">Valor original</span>
-                  <span className="tabular-nums text-muted-foreground line-through">R$ {subtotalOriginal.toFixed(2)}</span>
-                </div>
-              )}
-              {hasAnyWholesale && totalSaved > 0 && (
-                <div className="flex justify-between text-caption">
-                  <span className="text-success">Economia atacado</span>
-                  <span className="tabular-nums text-success">- R$ {totalSaved.toFixed(2)}</span>
-                </div>
-              )}
-              {(() => {
-                const displayTotal = !isSplitPayment && paymentMethod === "cartao" && creditCardInfo
-                  ? creditCardInfo.finalTotal
-                  : !isSplitPayment && paymentMethod === "boleto" && boletoInfo
-                    ? boletoInfo.finalTotal
-                    : subtotal;
-                const hasInterest = displayTotal > subtotal + 0.01;
-                return (
-                  <>
-                    {hasInterest && (
-                      <div className="flex justify-between text-caption text-muted-foreground">
-                        <span>Subtotal</span>
-                        <span className="tabular-nums">R$ {subtotal.toFixed(2)}</span>
-                      </div>
+                {!isSplitPayment && paymentMethod === "boleto" && boletoInfo && (
+                  <div className="flex items-center justify-between text-caption bg-secondary rounded-md px-3 py-1.5">
+                    <span className="text-muted-foreground">{boletoInfo.installments}x a cada {boletoInfo.interval} dias</span>
+                    <button className="text-primary text-xs underline" onClick={() => setShowBoletoModal(true)}>Alterar</button>
+                  </div>
+                )}
+
+                <Separator />
+                <div className="space-y-1">
+                  <div className="flex justify-between text-caption text-muted-foreground">
+                    <span>{cart.length} {cart.length === 1 ? "item" : "itens"}</span>
+                    {hasAnyWholesale && (
+                      <span className="text-success flex items-center gap-1">
+                        <Tag className="h-3 w-3" />
+                        Atacado aplicado
+                      </span>
                     )}
-                    <div className="flex justify-between text-subhead font-semibold">
-                      <span>Total{hasInterest ? " c/ juros" : ""}</span>
-                      <motion.span key={displayTotal} initial={{ scale: 1.05 }} animate={{ scale: 1 }} className={`tabular-nums ${hasAnyWholesale ? "text-success" : "text-foreground"}`}>
-                        R$ {displayTotal.toFixed(2)}
-                      </motion.span>
+                  </div>
+                  {hasAnyWholesale && totalSaved > 0 && (
+                    <div className="flex justify-between text-caption">
+                      <span className="text-muted-foreground">Valor original</span>
+                      <span className="tabular-nums text-muted-foreground line-through">R$ {subtotalOriginal.toFixed(2)}</span>
                     </div>
-                  </>
-                );
-              })()}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 h-10" onClick={() => { setCart([]); setCreditCardInfo(null); setBoletoInfo(null); }}>
-                Cancelar
-              </Button>
-              <Button className="flex-1 h-10" onClick={finalizeSale} disabled={submitting || !canSell} title={!canSell ? "Sem permissão para vender" : undefined}>
-                {submitting ? "Processando..." : "Finalizar (F2)"}
-              </Button>
-            </div>
+                  )}
+                  {hasAnyWholesale && totalSaved > 0 && (
+                    <div className="flex justify-between text-caption">
+                      <span className="text-success">Economia atacado</span>
+                      <span className="tabular-nums text-success">- R$ {totalSaved.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(() => {
+                    const displayTotal = !isSplitPayment && paymentMethod === "cartao" && creditCardInfo
+                      ? creditCardInfo.finalTotal
+                      : !isSplitPayment && paymentMethod === "boleto" && boletoInfo
+                        ? boletoInfo.finalTotal
+                        : subtotal;
+                    const hasInterest = displayTotal > subtotal + 0.01;
+                    return (
+                      <>
+                        {hasInterest && (
+                          <div className="flex justify-between text-caption text-muted-foreground">
+                            <span>Subtotal</span>
+                            <span className="tabular-nums">R$ {subtotal.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-subhead font-semibold">
+                          <span>Total{hasInterest ? " c/ juros" : ""}</span>
+                          <motion.span key={displayTotal} initial={{ scale: 1.05 }} animate={{ scale: 1 }} className={`tabular-nums ${hasAnyWholesale ? "text-success" : "text-foreground"}`}>
+                            R$ {displayTotal.toFixed(2)}
+                          </motion.span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 h-10" onClick={() => { setCart([]); setCreditCardInfo(null); setBoletoInfo(null); }}>
+                    Cancelar
+                  </Button>
+                  <Button className="flex-1 h-10" onClick={finalizeSale} disabled={submitting || !canSell} title={!canSell ? "Sem permissão para vender" : undefined}>
+                    {submitting ? "Processando..." : "Finalizar (F2)"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
