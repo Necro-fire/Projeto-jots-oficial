@@ -2,8 +2,8 @@ import { useState, useMemo, useCallback } from "react";
 import { Plus, Package, Pencil, Trash2, ShoppingCart, Printer, Share2, ImageDown, ZoomIn, Eye } from "lucide-react";
 // productImageFooter is used at save-time in ProductFormDialog
 import JsBarcode from "jsbarcode";
-import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { AtacadoDialog } from "@/components/AtacadoDialog";
 import { ProductImageDialog } from "@/components/pdv/ProductImageDialog";
@@ -26,6 +26,7 @@ export default function Produtos() {
   const { selectedFilial, filiais } = useFilial();
   const { filters, setFilters } = useProductFilters();
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const canCreate = hasPermission('Produtos', 'create');
   const canEdit = hasPermission('Produtos', 'edit');
   const canDelete = hasPermission('Produtos', 'delete');
@@ -117,18 +118,39 @@ export default function Produtos() {
     });
   };
 
-  const shareFiles = async (files: File[], title: string) => {
-    if (navigator.canShare && navigator.canShare({ files })) {
+  // Open WhatsApp (app on mobile, web on desktop) with optional pre-filled text
+  const openWhatsApp = (text: string) => {
+    const encoded = encodeURIComponent(text);
+    // wa.me works for both mobile (opens app) and desktop (opens WhatsApp Web)
+    const url = `https://wa.me/?text=${encoded}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  // Mobile: native share sheet (user picks WhatsApp). Desktop: download files + open WhatsApp Web.
+  const shareViaWhatsApp = async (files: File[], message: string) => {
+    // Mobile path — native share API includes WhatsApp in the chooser and attaches files directly
+    if (isMobile && navigator.canShare && navigator.canShare({ files })) {
       try {
-        await navigator.share({ title, files });
+        await navigator.share({ title: "Imagens de Produtos", text: message, files });
         return;
       } catch (e: any) {
-        if (e.name === "AbortError") return; // user cancelled
+        if (e.name === "AbortError") return;
+        // fall through to desktop fallback
       }
     }
-    // Fallback: download
-    files.forEach(f => saveAs(f, f.name));
-    toast.info("Compartilhamento não suportado neste navegador — arquivo baixado.");
+    // Desktop path — download each image individually, then open WhatsApp Web with message
+    files.forEach((f, i) => {
+      // Stagger downloads slightly so browsers don't block them
+      setTimeout(() => saveAs(f, f.name), i * 150);
+    });
+    setTimeout(() => {
+      openWhatsApp(message);
+      toast.success(
+        files.length === 1
+          ? "Imagem baixada — arraste para o WhatsApp Web"
+          : `${files.length} imagens baixadas — arraste para o WhatsApp Web`
+      );
+    }, files.length * 150 + 200);
   };
 
   const handleExportImage = useCallback(async (product: DbProduct) => {
@@ -138,9 +160,11 @@ export default function Produtos() {
       const name = `produto-${product.id.slice(0, 8)}-${sanitizeName(product.model || product.referencia)}.${ext}`;
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
       const file = new File([blob], name, { type: mimeType });
-      await shareFiles([file], product.model || product.referencia);
+      const productName = product.model || product.referencia;
+      const message = `*${productName}*\nRef: ${product.referencia}\nR$ ${Number(product.retail_price).toFixed(2)}`;
+      await shareViaWhatsApp([file], message);
     } catch { toast.error("Erro ao compartilhar imagem"); }
-  }, []);
+  }, [isMobile]);
 
   const [exporting, setExporting] = useState(false);
 
@@ -159,25 +183,11 @@ export default function Produtos() {
         } catch { /* skip failed */ }
       }));
       if (files.length === 0) { toast.error("Nenhuma imagem processada"); setExporting(false); return; }
-      // Try sharing files directly; if too many or unsupported, fallback to ZIP
-      if (navigator.canShare && navigator.canShare({ files })) {
-        try {
-          await navigator.share({ title: "Imagens de Produtos", files });
-          setExporting(false);
-          return;
-        } catch (e: any) {
-          if (e.name === "AbortError") { setExporting(false); return; }
-        }
-      }
-      // Fallback: ZIP download
-      const zip = new JSZip();
-      files.forEach(f => zip.file(f.name, f));
-      const content = await zip.generateAsync({ type: "blob", compression: "STORE" });
-      saveAs(content, `produtos-imagens-${new Date().toISOString().slice(0, 10)}.zip`);
-      toast.success(`${files.length} imagens exportadas`);
+      const message = `Confira nossa seleção de ${files.length} produtos:`;
+      await shareViaWhatsApp(files, message);
     } catch { toast.error("Erro ao compartilhar imagens"); }
     finally { setExporting(false); }
-  }, [filtered]);
+  }, [filtered, isMobile]);
 
   const handlePrintLabel = useCallback((product: DbProduct) => {
     const canvas = document.createElement("canvas");
@@ -222,7 +232,7 @@ export default function Produtos() {
           <div className="flex gap-2 flex-wrap">
             <Button size="sm" variant="outline" className="gap-1.5" onClick={handleExportAll} disabled={exporting}>
               <Share2 className="h-4 w-4" />
-              {exporting ? "Compartilhando..." : "Compartilhar Imagens"}
+              {exporting ? "Preparando..." : "Enviar por WhatsApp"}
             </Button>
             {canCreate && (
               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowAtacado(true)}>
@@ -333,7 +343,7 @@ export default function Produtos() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7"
-                        title="Compartilhar imagem"
+                        title="Enviar imagem por WhatsApp"
                         onClick={(e) => { e.stopPropagation(); handleExportImage(product); }}
                       >
                         <Share2 className="h-3.5 w-3.5" />
