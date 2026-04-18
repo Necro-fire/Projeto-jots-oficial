@@ -498,7 +498,8 @@ export default function PDV() {
 
       if (e.key === "F2") {
         e.preventDefault();
-        finalizeSale();
+        if (consignacaoMode) finalizeConsignacao();
+        else finalizeSale();
       } else if (e.key === "F4") {
         e.preventDefault();
         searchRef.current?.focus();
