@@ -19,6 +19,34 @@ const PRINT_STYLE_ID = "etiqueta-print-style";
 export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
   const previewBarcodeRef = useRef<SVGSVGElement>(null);
   const printBarcodeRef = useRef<SVGSVGElement>(null);
+  const [logoDataUrl, setLogoDataUrl] = useState<string>("");
+  const [logoReady, setLogoReady] = useState(false);
+
+  // Pre-load logo as a data URL so it's guaranteed to render at print time,
+  // even on browsers that skip un-decoded external images during printing.
+  useEffect(() => {
+    let cancelled = false;
+    setLogoReady(false);
+    fetch(etiquetaLogo)
+      .then((r) => r.blob())
+      .then((blob) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }))
+      .then((dataUrl) => {
+        if (cancelled) return;
+        setLogoDataUrl(dataUrl);
+        setLogoReady(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLogoDataUrl(etiquetaLogo);
+        setLogoReady(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!open || !produto.codigoBarras) return;
@@ -32,7 +60,6 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
         JsBarcode(previewBarcodeRef.current, produto.codigoBarras, { ...opts, width: 1.4, height: 40 });
       }
       if (printBarcodeRef.current) {
-        // Higher resolution for print fidelity
         JsBarcode(printBarcodeRef.current, produto.codigoBarras, { ...opts, width: 2, height: 40 });
       }
     } catch {
@@ -62,12 +89,28 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
           padding: 0 !important;
           background: #fff !important;
         }
+        #etiqueta-print-area img {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
       }
     `;
     document.head.appendChild(style);
   }, []);
 
-  const handleImprimir = () => {
+  const handleImprimir = async () => {
+    const img = document.querySelector<HTMLImageElement>("#etiqueta-print-area img");
+    if (img) {
+      try {
+        if (!img.complete) {
+          await new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          });
+        }
+        if ((img as any).decode) await (img as any).decode().catch(() => {});
+      } catch { /* ignore */ }
+    }
     window.print();
   };
 
