@@ -387,7 +387,7 @@ export default function Produtos() {
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7"
-                      title="Imprimir etiqueta ZPL (térmica)"
+                      title="Imprimir etiqueta"
                       onClick={(e) => { e.stopPropagation(); setEtiquetaProduto(product); }}
                     >
                       <Tag className="h-3.5 w-3.5" />
