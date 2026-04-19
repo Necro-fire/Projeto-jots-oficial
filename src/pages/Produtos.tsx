@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
-import { Plus, Package, Pencil, Trash2, ShoppingCart, Printer, ImageDown, ZoomIn, Eye } from "lucide-react";
+import { Plus, Package, Pencil, Trash2, ShoppingCart, Printer, ImageDown, ZoomIn, Eye, Tag } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
+import { ModalImprimirEtiqueta } from "@/components/ModalImprimirEtiqueta";
 // productImageFooter is used at save-time in ProductFormDialog
 import JsBarcode from "jsbarcode";
 import JSZip from "jszip";
@@ -34,6 +35,7 @@ export default function Produtos() {
   const canDelete = hasPermission('Produtos', 'delete');
   const canViewImages = hasPermission('Produtos', 'view_images');
   const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; classificacao?: string; haste?: number; lente?: number; ponte?: number } | null>(null);
+  const [etiquetaProduto, setEtiquetaProduto] = useState<DbProduct | null>(null);
 
   const { data: products } = useProducts();
 
@@ -381,6 +383,15 @@ export default function Produtos() {
                     >
                       <Printer className="h-3.5 w-3.5" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Imprimir etiqueta ZPL (térmica)"
+                      onClick={(e) => { e.stopPropagation(); setEtiquetaProduto(product); }}
+                    >
+                      <Tag className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               );
@@ -396,6 +407,16 @@ export default function Produtos() {
 
         <ProductFormDialog open={showForm} onOpenChange={handleFormClose} product={editingProduct} />
         <AtacadoDialog open={showAtacado} onOpenChange={setShowAtacado} />
+        {etiquetaProduto && (
+          <ModalImprimirEtiqueta
+            open={!!etiquetaProduto}
+            onClose={() => setEtiquetaProduto(null)}
+            produto={{
+              nome: etiquetaProduto.model || etiquetaProduto.referencia,
+              codigoBarras: etiquetaProduto.barcode || etiquetaProduto.code,
+            }}
+          />
+        )}
         {zoomImage && (
            <ProductImageDialog
             open={!!zoomImage}
