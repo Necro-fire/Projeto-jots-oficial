@@ -95,7 +95,7 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
                 className="absolute top-0 bottom-0 flex items-center justify-center"
                 style={{ left: "224px", width: "178px" }}
               >
-                <img src={jotsLogo} alt="JOTS" className="max-h-[60px] max-w-full object-contain" />
+                {logoDataUrl && <img src={logoDataUrl} alt="JOTS" className="max-h-[60px] max-w-full object-contain" />}
               </div>
               {/* Área 3: barcode 70–95mm = 420–570px */}
               <div
@@ -120,7 +120,7 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleImprimir} className="gap-1.5">
+            <Button onClick={handleImprimir} disabled={!logoReady} className="gap-1.5">
               <Printer className="h-4 w-4" /> Imprimir
             </Button>
           </DialogFooter>
@@ -155,11 +155,13 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               justifyContent: "center",
             }}
           >
-            <img
-              src={jotsLogo}
-              alt="JOTS"
-              style={{ maxHeight: "10mm", maxWidth: "100%", objectFit: "contain" }}
-            />
+            {logoDataUrl && (
+              <img
+                src={logoDataUrl}
+                alt="JOTS"
+                style={{ maxHeight: "10mm", maxWidth: "100%", objectFit: "contain", display: "block" }}
+              />
+            )}
           </div>
           {/* Área 3: barcode 70mm → 95mm (largura 25mm) */}
           <div
