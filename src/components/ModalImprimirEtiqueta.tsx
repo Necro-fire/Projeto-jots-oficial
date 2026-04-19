@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
 import { Printer, Tag } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import jotsLogo from "@/assets/jots-logo.png";
+import etiquetaLogo from "@/assets/jots-logo-etiqueta.png";
 
 interface Props {
   open: boolean;
@@ -19,6 +19,34 @@ const PRINT_STYLE_ID = "etiqueta-print-style";
 export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
   const previewBarcodeRef = useRef<SVGSVGElement>(null);
   const printBarcodeRef = useRef<SVGSVGElement>(null);
+  const [logoDataUrl, setLogoDataUrl] = useState<string>("");
+  const [logoReady, setLogoReady] = useState(false);
+
+  // Pre-load logo as a data URL so it's guaranteed to render at print time,
+  // even on browsers that skip un-decoded external images during printing.
+  useEffect(() => {
+    let cancelled = false;
+    setLogoReady(false);
+    fetch(etiquetaLogo)
+      .then((r) => r.blob())
+      .then((blob) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }))
+      .then((dataUrl) => {
+        if (cancelled) return;
+        setLogoDataUrl(dataUrl);
+        setLogoReady(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLogoDataUrl(etiquetaLogo);
+        setLogoReady(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!open || !produto.codigoBarras) return;
@@ -32,7 +60,6 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
         JsBarcode(previewBarcodeRef.current, produto.codigoBarras, { ...opts, width: 1.4, height: 40 });
       }
       if (printBarcodeRef.current) {
-        // Higher resolution for print fidelity
         JsBarcode(printBarcodeRef.current, produto.codigoBarras, { ...opts, width: 2, height: 40 });
       }
     } catch {
@@ -62,12 +89,28 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
           padding: 0 !important;
           background: #fff !important;
         }
+        #etiqueta-print-area img {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
       }
     `;
     document.head.appendChild(style);
   }, []);
 
-  const handleImprimir = () => {
+  const handleImprimir = async () => {
+    const img = document.querySelector<HTMLImageElement>("#etiqueta-print-area img");
+    if (img) {
+      try {
+        if (!img.complete) {
+          await new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          });
+        }
+        if ((img as any).decode) await (img as any).decode().catch(() => {});
+      } catch { /* ignore */ }
+    }
     window.print();
   };
 
@@ -95,7 +138,7 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
                 className="absolute top-0 bottom-0 flex items-center justify-center"
                 style={{ left: "224px", width: "178px" }}
               >
-                <img src={jotsLogo} alt="JOTS" className="max-h-[60px] max-w-full object-contain" />
+                {logoDataUrl && <img src={logoDataUrl} alt="JOTS" className="max-h-[60px] max-w-full object-contain" />}
               </div>
               {/* Área 3: barcode 70–95mm = 420–570px */}
               <div
@@ -120,7 +163,7 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleImprimir} className="gap-1.5">
+            <Button onClick={handleImprimir} disabled={!logoReady} className="gap-1.5">
               <Printer className="h-4 w-4" /> Imprimir
             </Button>
           </DialogFooter>
@@ -155,11 +198,13 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               justifyContent: "center",
             }}
           >
-            <img
-              src={jotsLogo}
-              alt="JOTS"
-              style={{ maxHeight: "10mm", maxWidth: "100%", objectFit: "contain" }}
-            />
+            {logoDataUrl && (
+              <img
+                src={logoDataUrl}
+                alt="JOTS"
+                style={{ maxHeight: "10mm", maxWidth: "100%", objectFit: "contain", display: "block" }}
+              />
+            )}
           </div>
           {/* Área 3: barcode 70mm → 95mm (largura 25mm) */}
           <div
