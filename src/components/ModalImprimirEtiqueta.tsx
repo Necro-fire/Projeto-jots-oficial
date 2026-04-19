@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
 import { Printer, Tag } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import jotsLogo from "@/assets/jots-logo.png";
+import etiquetaLogo from "@/assets/jots-logo-etiqueta.png";
 
 interface Props {
   open: boolean;
