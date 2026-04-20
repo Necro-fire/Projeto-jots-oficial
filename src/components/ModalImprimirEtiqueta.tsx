@@ -60,7 +60,8 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
         JsBarcode(previewBarcodeRef.current, produto.codigoBarras, { ...opts, width: 1.4, height: 40 });
       }
       if (printBarcodeRef.current) {
-        JsBarcode(printBarcodeRef.current, produto.codigoBarras, { ...opts, width: 2, height: 40 });
+        // High-resolution barcode: thicker bars + taller for crisp thermal print
+        JsBarcode(printBarcodeRef.current, produto.codigoBarras, { ...opts, width: 3, height: 80 });
       }
     } catch {
       // invalid barcode — leave svg empty
