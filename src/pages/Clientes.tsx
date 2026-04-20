@@ -33,9 +33,9 @@ export default function Clientes() {
   const { selectedFilial } = useFilial();
   const { data: clients, refetch } = useClients();
   const { hasPermission } = useAuth();
-  const canCreate = hasPermission('Clientes', 'create');
-  const canEdit = hasPermission('Clientes', 'edit');
-  const canDelete = hasPermission('Clientes', 'delete');
+  const canCreate = hasPermission('clientes', 'create');
+  const canEdit = hasPermission('clientes', 'edit');
+  const canDelete = hasPermission('clientes', 'delete');
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();

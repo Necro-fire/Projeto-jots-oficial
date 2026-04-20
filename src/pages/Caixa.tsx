@@ -44,7 +44,7 @@ function formatCurrency(v: number) {
 export default function Caixa() {
   const { selectedFilial, filialLabel } = useFilial();
   const { user, profile, hasPermission } = useAuth();
-  const canManage = hasPermission('Caixa', 'manage');
+  const canManage = hasPermission('caixa', 'manage');
   const { caixas, loading } = useCaixas();
   const { preset, range, onChange: onDateChange } = useDateRangeFilter();
 

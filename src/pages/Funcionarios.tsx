@@ -54,8 +54,8 @@ export default function Funcionarios() {
   const [passwordFunc, setPasswordFunc] = useState<Funcionario | null>(null);
   const { selectedFilial } = useFilial();
   const { isAdmin, hasPermission } = useAuth();
-  const canCreate = hasPermission('Funcionários', 'create');
-  const canEdit = hasPermission('Funcionários', 'edit');
+  const canCreate = hasPermission('funcionarios', 'create');
+  const canEdit = hasPermission('funcionarios', 'edit');
 
   // Form state
   const [nome, setNome] = useState('');

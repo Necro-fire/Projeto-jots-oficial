@@ -29,10 +29,10 @@ export default function Produtos() {
   const { filters, setFilters } = useProductFilters();
   const { hasPermission } = useAuth();
   const isMobile = useIsMobile();
-  const canCreate = hasPermission('Produtos', 'create');
-  const canEdit = hasPermission('Produtos', 'edit');
-  const canDelete = hasPermission('Produtos', 'delete');
-  const canViewImages = hasPermission('Produtos', 'view_images');
+  const canCreate = hasPermission('produtos', 'create');
+  const canEdit = hasPermission('produtos', 'edit');
+  const canDelete = hasPermission('produtos', 'delete');
+  const canViewImages = hasPermission('produtos', 'view_images');
   const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; classificacao?: string; haste?: number; lente?: number; ponte?: number } | null>(null);
   const [etiquetaProduto, setEtiquetaProduto] = useState<DbProduct | null>(null);
 
