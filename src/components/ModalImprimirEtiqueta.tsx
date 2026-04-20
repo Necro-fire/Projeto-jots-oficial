@@ -134,17 +134,17 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               style={{ width: "570px", height: "72px" }}
               aria-label="Preview da etiqueta"
             >
-              {/* Área 2: logo 36.9–66.5mm = 221–399px (−0,5mm) */}
+              {/* Área 2: logo 34.9–64.5mm = 209–387px (−2.5mm total) */}
               <div
                 className="absolute top-0 bottom-0 flex items-center justify-center"
-                style={{ left: "221px", width: "178px" }}
+                style={{ left: "209px", width: "178px" }}
               >
                 {logoDataUrl && <img src={logoDataUrl} alt="JOTS" className="max-h-[60px] max-w-full object-contain" />}
               </div>
-              {/* Área 3: barcode 69,5–94,5mm = 417–567px (−0,5mm) */}
+              {/* Área 3: barcode 67,5–92,5mm = 405–555px (−2.5mm total) */}
               <div
                 className="absolute top-0 bottom-0 flex flex-col items-center justify-center"
-                style={{ left: "417px", width: "150px" }}
+                style={{ left: "405px", width: "150px" }}
               >
                 <svg ref={previewBarcodeRef} className="max-w-full" />
                 <span className="text-[9px] font-bold tabular-nums leading-none mt-0.5">
@@ -186,11 +186,11 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
             overflow: "hidden",
           }}
         >
-          {/* Área 2: logo 36.9mm → 66.5mm (−0,5mm) */}
+          {/* Área 2: logo 34.9mm → 64.5mm (−2.5mm total) */}
           <div
             style={{
               position: "absolute",
-              left: "36.9mm",
+              left: "34.9mm",
               top: 0,
               width: "29.6mm",
               height: "12mm",
@@ -213,11 +213,11 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               />
             )}
           </div>
-          {/* Área 3: barcode 69,5mm → 94,5mm (−0,5mm) */}
+          {/* Área 3: barcode 67,5mm → 92,5mm (−2.5mm total) */}
           <div
             style={{
               position: "absolute",
-              left: "69.5mm",
+              left: "67.5mm",
               top: 0,
               width: "25mm",
               height: "12mm",
