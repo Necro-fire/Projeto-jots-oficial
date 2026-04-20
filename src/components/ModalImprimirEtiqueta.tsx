@@ -134,17 +134,17 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               style={{ width: "570px", height: "72px" }}
               aria-label="Preview da etiqueta"
             >
-              {/* Área 2: logo 37.4–67mm = 224–402px */}
+              {/* Área 2: logo 36.9–66.5mm = 221–399px (−0,5mm) */}
               <div
                 className="absolute top-0 bottom-0 flex items-center justify-center"
-                style={{ left: "224px", width: "178px" }}
+                style={{ left: "221px", width: "178px" }}
               >
                 {logoDataUrl && <img src={logoDataUrl} alt="JOTS" className="max-h-[60px] max-w-full object-contain" />}
               </div>
-              {/* Área 3: barcode 70–95mm = 420–570px */}
+              {/* Área 3: barcode 69,5–94,5mm = 417–567px (−0,5mm) */}
               <div
                 className="absolute top-0 bottom-0 flex flex-col items-center justify-center"
-                style={{ left: "420px", width: "150px" }}
+                style={{ left: "417px", width: "150px" }}
               >
                 <svg ref={previewBarcodeRef} className="max-w-full" />
                 <span className="text-[9px] font-bold tabular-nums leading-none mt-0.5">
@@ -186,11 +186,11 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
             overflow: "hidden",
           }}
         >
-          {/* Área 2: logo 37.4mm → 67mm (largura 29.6mm) */}
+          {/* Área 2: logo 36.9mm → 66.5mm (−0,5mm) */}
           <div
             style={{
               position: "absolute",
-              left: "37.4mm",
+              left: "36.9mm",
               top: 0,
               width: "29.6mm",
               height: "12mm",
@@ -213,11 +213,11 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               />
             )}
           </div>
-          {/* Área 3: barcode 70mm → 95mm (largura 25mm) */}
+          {/* Área 3: barcode 69,5mm → 94,5mm (−0,5mm) */}
           <div
             style={{
               position: "absolute",
-              left: "70mm",
+              left: "69.5mm",
               top: 0,
               width: "25mm",
               height: "12mm",
