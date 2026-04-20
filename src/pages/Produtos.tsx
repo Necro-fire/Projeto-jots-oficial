@@ -33,6 +33,8 @@ export default function Produtos() {
   const canEdit = hasPermission('produtos', 'edit');
   const canDelete = hasPermission('produtos', 'delete');
   const canViewImages = hasPermission('produtos', 'view_images');
+  const canManageAtacado = hasPermission('produtos', 'manage_atacado');
+  const canExportImage = hasPermission('produtos', 'export_image');
   const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; classificacao?: string; haste?: number; lente?: number; ponte?: number } | null>(null);
   const [etiquetaProduto, setEtiquetaProduto] = useState<DbProduct | null>(null);
 
@@ -223,11 +225,13 @@ export default function Produtos() {
             <p className="text-ui text-muted-foreground">{filtered.length} produtos</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Button size="sm" variant="outline" className="gap-1.5 text-[#25D366] hover:text-[#25D366]" onClick={handleExportAll} disabled={exporting}>
-              <WhatsAppIcon className="h-4 w-4" />
-              {exporting ? "Preparando..." : "Enviar por WhatsApp"}
-            </Button>
-            {canCreate && (
+            {canExportImage && (
+              <Button size="sm" variant="outline" className="gap-1.5 text-[#25D366] hover:text-[#25D366]" onClick={handleExportAll} disabled={exporting}>
+                <WhatsAppIcon className="h-4 w-4" />
+                {exporting ? "Preparando..." : "Enviar por WhatsApp"}
+              </Button>
+            )}
+            {canManageAtacado && (
               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowAtacado(true)}>
                 <ShoppingCart className="h-4 w-4" />
                 Atacado
@@ -331,7 +335,7 @@ export default function Produtos() {
                         </Badge>
                       );
                     })()}
-                    {product.image_url && (
+                    {canExportImage && product.image_url && (
                       <Button
                         variant="ghost"
                         size="icon"
