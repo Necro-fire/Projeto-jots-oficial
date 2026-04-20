@@ -33,7 +33,7 @@ export default function Estoque() {
   const { data: products } = useProducts();
   const { filters, setFilters } = useProductFilters();
   const { hasPermission } = useAuth();
-  const canManageAlerts = hasPermission('Estoque', 'manage_alerts');
+  const canManageAlerts = hasPermission('estoque', 'manage_alerts');
 
   // Pre-apply filters from URL params
   useEffect(() => {
