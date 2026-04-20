@@ -229,18 +229,19 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
           >
             <svg
               ref={printBarcodeRef}
-              style={{ width: "24mm", height: "7.5mm", display: "block" }}
+              style={{ width: "24mm", height: "6.5mm", display: "block" }}
             />
             <span
               style={{
                 fontFamily: "Arial, Helvetica, sans-serif",
                 fontWeight: 900,
-                fontSize: "2.6mm",
-                letterSpacing: "0.2mm",
+                fontSize: "2.1mm",
+                letterSpacing: "0.15mm",
                 lineHeight: 1,
-                marginTop: "0.4mm",
+                marginTop: "0.3mm",
                 color: "#000",
-                WebkitTextStroke: "0.05mm #000",
+                WebkitTextStroke: "0.04mm #000",
+                whiteSpace: "nowrap",
               }}
             >
               {produto.codigoBarras}
