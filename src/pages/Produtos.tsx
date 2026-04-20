@@ -253,7 +253,7 @@ export default function Produtos() {
               return (
                 <div key={product.id} className="rounded-lg shadow-card bg-card p-3 group hover:shadow-md transition-shadow relative">
                     <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {canViewImages && product.image_url && (
+                      {product.image_url && (
                         <Button variant="secondary" size="icon" className="h-7 w-7" title="Visualizar" onClick={() => setZoomImage({ url: product.image_url, name: product.model || product.referencia, category: product.category, classificacao: (product as any).classificacao, haste: product.temple_size, lente: product.lens_size, ponte: product.bridge_size })}>
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
