@@ -18,7 +18,7 @@ export function gerarZpl({ codigoBarras }: EtiquetaParams): string {
     "^LH0,0",
     `~DGR:LOGO.GRF,${LOGO_GRF_TOTAL_BYTES},${LOGO_GRF_BYTES_PER_ROW},`,
     LOGO_GRF_HEX,
-    "^FO289,8",
+    "^FO289,0",
     "^XGR:LOGO.GRF,1,1",
     "^FS",
     "^FO539,0",
