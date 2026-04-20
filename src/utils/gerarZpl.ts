@@ -21,7 +21,7 @@ export function gerarZpl({ codigoBarras }: EtiquetaParams): string {
     "^FO289,0",
     "^XGR:LOGO.GRF,1,1",
     "^FS",
-    "^FO539,5",
+    "^FO539,0",
     "^BY2,3,56",
     "^BCN,56,N,N,N",
     `^FD${codigoBarras}^FS`,
