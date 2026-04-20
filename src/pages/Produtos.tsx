@@ -32,7 +32,6 @@ export default function Produtos() {
   const canCreate = hasPermission('produtos', 'create');
   const canEdit = hasPermission('produtos', 'edit');
   const canDelete = hasPermission('produtos', 'delete');
-  const canViewImages = hasPermission('produtos', 'view_images');
   const canManageAtacado = hasPermission('produtos', 'manage_atacado');
   const canExportImage = hasPermission('produtos', 'export_image');
   const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; classificacao?: string; haste?: number; lente?: number; ponte?: number } | null>(null);
