@@ -203,7 +203,13 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               <img
                 src={logoDataUrl}
                 alt="JOTS"
-                style={{ maxHeight: "10mm", maxWidth: "100%", objectFit: "contain", display: "block" }}
+                style={{
+                  height: "10mm",
+                  width: "auto",
+                  maxWidth: "29mm",
+                  objectFit: "contain",
+                  display: "block",
+                }}
               />
             )}
           </div>
@@ -223,16 +229,18 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
           >
             <svg
               ref={printBarcodeRef}
-              style={{ width: "24mm", height: "8mm", display: "block" }}
-              preserveAspectRatio="none"
+              style={{ width: "24mm", height: "7.5mm", display: "block" }}
             />
             <span
               style={{
-                fontFamily: "monospace",
-                fontWeight: 700,
-                fontSize: "2mm",
+                fontFamily: "Arial, Helvetica, sans-serif",
+                fontWeight: 900,
+                fontSize: "2.6mm",
+                letterSpacing: "0.2mm",
                 lineHeight: 1,
-                marginTop: "0.3mm",
+                marginTop: "0.4mm",
+                color: "#000",
+                WebkitTextStroke: "0.05mm #000",
               }}
             >
               {produto.codigoBarras}
