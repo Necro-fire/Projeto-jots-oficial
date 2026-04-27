@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, module, action }: ProtectedRouteProps) {
-  const { user, loading, hasPermission } = useAuth();
+  const { user, loading, hasPermission, hasModuleAccess } = useAuth();
 
   if (loading) {
     return (
@@ -23,7 +23,14 @@ export function ProtectedRoute({ children, module, action }: ProtectedRouteProps
     return <Navigate to="/login" replace />;
   }
 
-  if (module && action && !hasPermission(module, action)) {
+  // For "view" actions, allow access if the user has ANY permission in the module
+  const allowed = !module || !action
+    ? true
+    : action === 'view'
+      ? hasModuleAccess(module)
+      : hasPermission(module, action);
+
+  if (!allowed) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-muted-foreground">
         <p className="text-lg font-medium">Acesso negado</p>
