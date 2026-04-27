@@ -24,7 +24,6 @@ interface AuthContextType {
   loading: boolean;
   employeeFilialId: string | null;
   hasPermission: (module: string, action: string) => boolean;
-  hasModuleAccess: (module: string) => boolean;
   hasRole: (role: string) => boolean;
   signOut: () => Promise<void>;
   refreshPermissions: () => Promise<void>;
