@@ -418,7 +418,7 @@ export function ProductFormDialog({
         classificacao: effectiveClassificacao,
         category: classificacaoProduto,
         retail_price: price,
-        custo: custo || 0,
+        ...(canViewCost ? { custo: custo || 0 } : {}),
         description: detail.trim(),
         image_url: imageUrl,
         filial_id: fId || filial,
