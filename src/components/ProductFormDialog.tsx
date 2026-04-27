@@ -71,6 +71,8 @@ export function ProductFormDialog({
   const [name, setName] = useState("");
   const [price, setPrice] = useState<number>(0);
   const [custo, setCusto] = useState<number>(0);
+  const { hasPermission } = useAuth();
+  const canViewCost = hasPermission('produtos', 'view_cost');
   const [detail, setDetail] = useState("");
   const [filial, setFilial] = useState("");
   const [quantidade, setQuantidade] = useState("1");
