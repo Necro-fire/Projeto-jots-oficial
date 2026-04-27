@@ -11,6 +11,7 @@ import { NumericStepper } from "@/components/ui/numeric-stepper";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { DbProduct } from "@/hooks/useSupabaseData";
 import { generateProductCodes, findProductByHash, upsertEstoque } from "@/hooks/useSupabaseData";
@@ -70,6 +71,8 @@ export function ProductFormDialog({
   const [name, setName] = useState("");
   const [price, setPrice] = useState<number>(0);
   const [custo, setCusto] = useState<number>(0);
+  const { hasPermission } = useAuth();
+  const canViewCost = hasPermission('produtos', 'view_cost');
   const [detail, setDetail] = useState("");
   const [filial, setFilial] = useState("");
   const [quantidade, setQuantidade] = useState("1");
@@ -415,7 +418,7 @@ export function ProductFormDialog({
         classificacao: effectiveClassificacao,
         category: classificacaoProduto,
         retail_price: price,
-        custo: custo || 0,
+        ...(canViewCost ? { custo: custo || 0 } : {}),
         description: detail.trim(),
         image_url: imageUrl,
         filial_id: fId || filial,
@@ -1191,15 +1194,17 @@ export function ProductFormDialog({
           )}
 
           {/* Preço, Custo e Quantidade */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className={`grid gap-3 ${canViewCost ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <div>
               <Label htmlFor="product-price">Preço (R$) *</Label>
               <CurrencyInput id="product-price" value={price} onValueChange={setPrice} placeholder="0,00" className="mt-1.5" />
             </div>
-            <div>
-              <Label htmlFor="product-custo">Custo (R$)</Label>
-              <CurrencyInput id="product-custo" value={custo} onValueChange={setCusto} placeholder="0,00" className="mt-1.5" />
-            </div>
+            {canViewCost && (
+              <div>
+                <Label htmlFor="product-custo">Custo (R$)</Label>
+                <CurrencyInput id="product-custo" value={custo} onValueChange={setCusto} placeholder="0,00" className="mt-1.5" />
+              </div>
+            )}
             <div>
               <Label>{isEditing ? "Quantidade em estoque" : "Quantidade a adicionar"}</Label>
               <div className="mt-1.5">
