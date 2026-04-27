@@ -78,15 +78,11 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { hasPermission, hasModuleAccess, isAdmin, profile, signOut } = useAuth();
+  const { hasPermission, isAdmin, profile, signOut } = useAuth();
   const isActive = (path: string) => location.pathname === path;
 
-  // Treat "view" as implicit: any permission in the module reveals the menu item
-  const canSee = (item: { module: string; action: string }) =>
-    item.action === 'view' ? hasModuleAccess(item.module) : hasPermission(item.module, item.action);
-
   const renderNavGroup = (items: typeof mainNav) => {
-    const visibleItems = items.filter(canSee);
+    const visibleItems = items.filter(item => hasPermission(item.module, item.action));
     if (visibleItems.length === 0) return null;
     return visibleItems.map((item) => (
       <SidebarMenuItem key={item.title}>
@@ -124,7 +120,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {staffNav.some(i => canSee(i)) && (
+        {staffNav.some(i => hasPermission(i.module, i.action)) && (
           <SidebarGroup>
             <SidebarGroupLabel>Funcionários</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -133,7 +129,7 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {managementNav.some(i => canSee(i)) && (
+        {managementNav.some(i => hasPermission(i.module, i.action)) && (
           <SidebarGroup>
             <SidebarGroupLabel>Gestão</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -142,7 +138,7 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {fiscalNav.some(i => canSee(i)) && (
+        {fiscalNav.some(i => hasPermission(i.module, i.action)) && (
           <SidebarGroup>
             <SidebarGroupLabel>Fiscal</SidebarGroupLabel>
             <SidebarGroupContent>
