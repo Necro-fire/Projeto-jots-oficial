@@ -1194,15 +1194,17 @@ export function ProductFormDialog({
           )}
 
           {/* Preço, Custo e Quantidade */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className={`grid gap-3 ${canViewCost ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <div>
               <Label htmlFor="product-price">Preço (R$) *</Label>
               <CurrencyInput id="product-price" value={price} onValueChange={setPrice} placeholder="0,00" className="mt-1.5" />
             </div>
-            <div>
-              <Label htmlFor="product-custo">Custo (R$)</Label>
-              <CurrencyInput id="product-custo" value={custo} onValueChange={setCusto} placeholder="0,00" className="mt-1.5" />
-            </div>
+            {canViewCost && (
+              <div>
+                <Label htmlFor="product-custo">Custo (R$)</Label>
+                <CurrencyInput id="product-custo" value={custo} onValueChange={setCusto} placeholder="0,00" className="mt-1.5" />
+              </div>
+            )}
             <div>
               <Label>{isEditing ? "Quantidade em estoque" : "Quantidade a adicionar"}</Label>
               <div className="mt-1.5">
