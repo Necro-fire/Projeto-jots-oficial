@@ -124,7 +124,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {staffNav.some(i => hasPermission(i.module, i.action)) && (
+        {staffNav.some(i => canSee(i)) && (
           <SidebarGroup>
             <SidebarGroupLabel>Funcionários</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -133,7 +133,7 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {managementNav.some(i => hasPermission(i.module, i.action)) && (
+        {managementNav.some(i => canSee(i)) && (
           <SidebarGroup>
             <SidebarGroupLabel>Gestão</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -142,7 +142,7 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {fiscalNav.some(i => hasPermission(i.module, i.action)) && (
+        {fiscalNav.some(i => canSee(i)) && (
           <SidebarGroup>
             <SidebarGroupLabel>Fiscal</SidebarGroupLabel>
             <SidebarGroupContent>
