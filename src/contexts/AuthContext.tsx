@@ -112,13 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return permissions.some(p => p.module === module && p.action === action);
   }, [isAdmin, permissions]);
 
-  // Grants module access if the user has ANY permission in that module.
-  // This makes "view" implicit — having any action in the module reveals the screen.
-  const hasModuleAccess = useCallback((module: string) => {
-    if (isAdmin) return true;
-    return permissions.some(p => p.module === module);
-  }, [isAdmin, permissions]);
-
   const hasRole = useCallback((role: string) => {
     if (isAdmin && role === 'admin') return true;
     return roles.includes(role);
