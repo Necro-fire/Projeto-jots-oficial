@@ -60,6 +60,7 @@ export interface DbClient {
   endereco: string;
   data_nascimento: string | null;
   observacoes: string;
+  nome_fantasia?: string;
 }
 
 export interface DbVenda {
