@@ -369,8 +369,8 @@ export default function Caixa() {
                                 <TableCell className="text-sm max-w-[200px] truncate">{m.descricao || "—"}</TableCell>
                                 <TableCell className="text-xs">{FORMAS_PAGAMENTO.find(f => f.value === m.forma_pagamento)?.label || m.forma_pagamento}</TableCell>
                                 <TableCell className="text-xs">{m.usuario_nome}</TableCell>
-                                <TableCell className={`text-right font-semibold tabular-nums text-sm ${m.tipo === "sangria" || m.tipo === "despesa" ? "text-destructive" : "text-primary"}`}>
-                                  {m.tipo === "sangria" || m.tipo === "despesa" ? "- " : "+ "}{formatCurrency(m.valor)}
+                                <TableCell className={`text-right font-semibold tabular-nums text-sm ${m.valor < 0 || m.tipo === "sangria" || m.tipo === "despesa" ? "text-destructive" : "text-primary"}`}>
+                                  {m.valor < 0 ? "" : (m.tipo === "sangria" || m.tipo === "despesa" ? "- " : "+ ")}{formatCurrency(m.valor)}
                                 </TableCell>
                               </TableRow>
                             ))}
