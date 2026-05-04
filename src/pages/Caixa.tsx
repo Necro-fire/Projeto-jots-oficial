@@ -172,8 +172,8 @@ export default function Caixa() {
     }
   }
 
-  const tipoLabel: Record<string, string> = { venda: "Venda", sangria: "Sangria", reforco: "Reforço", despesa: "Despesa" };
-  const tipoColor: Record<string, string> = { venda: "bg-primary/10 text-primary", sangria: "bg-destructive/10 text-destructive", reforco: "bg-accent/10 text-accent-foreground", despesa: "bg-warning/10 text-warning-foreground" };
+  const tipoLabel: Record<string, string> = { venda: "Venda", sangria: "Sangria", reforco: "Reforço", despesa: "Despesa", cancelamento: "Estorno", cancelamento_item: "Estorno item" };
+  const tipoColor: Record<string, string> = { venda: "bg-primary/10 text-primary", sangria: "bg-destructive/10 text-destructive", reforco: "bg-accent/10 text-accent-foreground", despesa: "bg-warning/10 text-warning-foreground", cancelamento: "bg-destructive/10 text-destructive", cancelamento_item: "bg-destructive/10 text-destructive" };
 
   const viewingCaixa = selectedCaixa || caixaAberto;
 
