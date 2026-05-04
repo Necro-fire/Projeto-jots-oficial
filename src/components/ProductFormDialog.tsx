@@ -19,7 +19,7 @@ import { generateProductCodes, findProductByHash, upsertEstoque } from "@/hooks/
 import { generateProductHash } from "@/lib/productHash";
 import { shouldHaveFooter, renderImageWithFooter, renderImageWithoutFooter } from "@/lib/productImageFooter";
 import {
-  CLASSIFICACOES, CATEGORIAS_IDADE, GENEROS, ESTILOS, TODAS_CORES, CORES_SOLIDAS,
+  CLASSIFICACOES, CLASSIFICACOES_OPCOES, CLASSIFICACAO_PERSONALIZADO, CATEGORIAS_IDADE, GENEROS, ESTILOS, TODAS_CORES, CORES_SOLIDAS,
   MATERIAIS_ARO, MATERIAIS_HASTE, TIPOS_LENTE, CORES_LENTE_CLIPON,
   MEDIDAS_LENTE, MEDIDAS_ALTURA_LENTE, MEDIDAS_PONTE, MEDIDAS_HASTE as MEDIDAS_HASTE_RANGE,
   TIPOS_HASTE, PONTES_ARMACAO, CLASSIFICACOES_PRODUTO, type ClassificacaoProduto,
@@ -102,6 +102,7 @@ export function ProductFormDialog({
   const [ponteArmacao, setPonteArmacao] = useState("");
   const [ncm, setNcm] = useState("");
   const [classificacao, setClassificacao] = useState("");
+  const [classificacaoMode, setClassificacaoMode] = useState<"predefinida" | "personalizado">("predefinida");
 
   // Accessory fields (new hierarchical)
   const [subcategoriaAcessorio, setSubcategoriaAcessorio] = useState(""); // legacy compat
@@ -182,7 +183,9 @@ export function ProductFormDialog({
       setMaterialAcessorio((product as any).material_acessorio || "");
       setTipoVenda((product as any).tipo_venda || "");
       setNcm((product as any).ncm || "");
-      setClassificacao((product as any).classificacao || "");
+      const cls = (product as any).classificacao || "";
+      setClassificacao(cls);
+      setClassificacaoMode(cls && !(CLASSIFICACOES as readonly string[]).includes(cls) ? "personalizado" : "predefinida");
       setImagePreview(product.image_url || null);
       setDuplicateInfo(null);
     } else {
@@ -228,6 +231,7 @@ export function ProductFormDialog({
     setPonteArmacao("");
     setNcm("");
     setClassificacao("");
+    setClassificacaoMode("predefinida");
     setSubcategoriaAcessorio("");
     setCategoriaAcessorio("");
     setTipoAcessorio("");
@@ -567,12 +571,32 @@ export function ProductFormDialog({
                 </div>
                 <div>
                   <Label>Classificação *</Label>
-                  <Select value={classificacao} onValueChange={setClassificacao}>
+                  <Select
+                    value={classificacaoMode === "personalizado" ? CLASSIFICACAO_PERSONALIZADO : classificacao}
+                    onValueChange={(v) => {
+                      if (v === CLASSIFICACAO_PERSONALIZADO) {
+                        setClassificacaoMode("personalizado");
+                        setClassificacao("");
+                      } else {
+                        setClassificacaoMode("predefinida");
+                        setClassificacao(v);
+                      }
+                    }}
+                  >
                     <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      {CLASSIFICACOES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      {CLASSIFICACOES_OPCOES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {classificacaoMode === "personalizado" && (
+                    <Input
+                      className="mt-2"
+                      placeholder="Ex: Vermelho Cristal, Azul Translúcido"
+                      value={classificacao}
+                      onChange={(e) => setClassificacao(e.target.value)}
+                      maxLength={60}
+                    />
+                  )}
                 </div>
               </div>
             )}
