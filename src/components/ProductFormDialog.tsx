@@ -183,7 +183,9 @@ export function ProductFormDialog({
       setMaterialAcessorio((product as any).material_acessorio || "");
       setTipoVenda((product as any).tipo_venda || "");
       setNcm((product as any).ncm || "");
-      setClassificacao((product as any).classificacao || "");
+      const cls = (product as any).classificacao || "";
+      setClassificacao(cls);
+      setClassificacaoMode(cls && !(CLASSIFICACOES as readonly string[]).includes(cls) ? "personalizado" : "predefinida");
       setImagePreview(product.image_url || null);
       setDuplicateInfo(null);
     } else {
