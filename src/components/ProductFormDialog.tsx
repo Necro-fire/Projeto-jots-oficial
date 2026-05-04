@@ -571,12 +571,32 @@ export function ProductFormDialog({
                 </div>
                 <div>
                   <Label>Classificação *</Label>
-                  <Select value={classificacao} onValueChange={setClassificacao}>
+                  <Select
+                    value={classificacaoMode === "personalizado" ? CLASSIFICACAO_PERSONALIZADO : classificacao}
+                    onValueChange={(v) => {
+                      if (v === CLASSIFICACAO_PERSONALIZADO) {
+                        setClassificacaoMode("personalizado");
+                        setClassificacao("");
+                      } else {
+                        setClassificacaoMode("predefinida");
+                        setClassificacao(v);
+                      }
+                    }}
+                  >
                     <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      {CLASSIFICACOES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      {CLASSIFICACOES_OPCOES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {classificacaoMode === "personalizado" && (
+                    <Input
+                      className="mt-2"
+                      placeholder="Ex: Vermelho Cristal, Azul Translúcido"
+                      value={classificacao}
+                      onChange={(e) => setClassificacao(e.target.value)}
+                      maxLength={60}
+                    />
+                  )}
                 </div>
               </div>
             )}
