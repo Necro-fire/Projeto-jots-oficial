@@ -5,13 +5,15 @@ import { maskCpf, maskCnpj } from "@/lib/masks";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type DocType = "" | "cpf" | "cnpj";
+type SearchType = "nome" | "doc";
 
 interface Client {
   id: string;
   store_name: string;
   responsible_name: string;
   cnpj: string;
+  cpf?: string;
+  nome_fantasia?: string;
 }
 
 interface ClientSearchPanelProps {
@@ -21,8 +23,8 @@ interface ClientSearchPanelProps {
 }
 
 export function ClientSearchPanel({ clients, selectedClient, onSelectClient }: ClientSearchPanelProps) {
-  const [docType, setDocType] = useState<DocType>("");
-  const [docValue, setDocValue] = useState("");
+  const [searchType, setSearchType] = useState<SearchType>("nome");
+  const [value, setValue] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<Client[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,41 +33,68 @@ export function ClientSearchPanel({ clients, selectedClient, onSelectClient }: C
 
   const selectedClientObj = clients.find(c => c.id === selectedClient);
 
-  const search = useCallback((digits: string) => {
-    if (digits.length < 3) {
+  const search = useCallback((raw: string) => {
+    const trimmed = raw.trim();
+    if (trimmed.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
-    const matches = clients.filter(c => c.cnpj.replace(/\D/g, "").includes(digits));
-    setSuggestions(matches);
+    let matches: Client[] = [];
+    if (searchType === "nome") {
+      const q = trimmed.toLowerCase();
+      matches = clients.filter(c => {
+        const fantasia = (c.nome_fantasia || "").toLowerCase();
+        const store = (c.store_name || "").toLowerCase();
+        const resp = (c.responsible_name || "").toLowerCase();
+        return fantasia.includes(q) || store.includes(q) || resp.includes(q);
+      });
+    } else {
+      const digits = trimmed.replace(/\D/g, "");
+      if (digits.length < 2) return;
+      matches = clients.filter(c => {
+        const cnpjD = (c.cnpj || "").replace(/\D/g, "");
+        const cpfD = (c.cpf || "").replace(/\D/g, "");
+        return (cnpjD && cnpjD.includes(digits)) || (cpfD && cpfD.includes(digits));
+      });
+    }
+    setSuggestions(matches.slice(0, 20));
     setShowSuggestions(matches.length > 0);
-  }, [clients]);
+  }, [clients, searchType]);
 
-  const handleDocChange = (raw: string) => {
-    const digits = raw.replace(/\D/g, "");
-    const masked = docType === "cpf" ? maskCpf(digits) : maskCnpj(digits);
-    setDocValue(masked);
-
+  const handleChange = (raw: string) => {
+    let next = raw;
+    if (searchType === "doc") {
+      const digits = raw.replace(/\D/g, "").slice(0, 14);
+      next = digits.length <= 11 ? maskCpf(digits) : maskCnpj(digits);
+    }
+    setValue(next);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(digits), 250);
+    debounceRef.current = setTimeout(() => search(next), 200);
   };
 
   const handleSelect = (client: Client) => {
     onSelectClient(client.id);
-    setDocValue(client.cnpj);
+    setValue(searchType === "nome"
+      ? (client.nome_fantasia || client.store_name || client.responsible_name || "")
+      : (client.cnpj || client.cpf || ""));
     setShowSuggestions(false);
   };
 
   const handleClear = () => {
     onSelectClient("");
-    setDocValue("");
-    setDocType("");
+    setValue("");
     setSuggestions([]);
     setShowSuggestions(false);
   };
 
-  // Close suggestions on click outside
+  const handleTypeChange = (v: SearchType) => {
+    setSearchType(v);
+    setValue("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
@@ -80,14 +109,18 @@ export function ClientSearchPanel({ clients, selectedClient, onSelectClient }: C
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, []);
 
+  const placeholder = searchType === "nome"
+    ? "Digite o nome fantasia..."
+    : "CPF ou CNPJ";
+
   return (
     <div ref={panelRef} className="space-y-2">
       {selectedClientObj ? (
         <div className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 h-9">
           <span className="flex-1 text-ui truncate">
-            {selectedClientObj.responsible_name || selectedClientObj.store_name}
-            {selectedClientObj.cnpj && (
-              <span className="ml-2 text-muted-foreground text-caption">· {selectedClientObj.cnpj}</span>
+            {selectedClientObj.nome_fantasia || selectedClientObj.store_name || selectedClientObj.responsible_name}
+            {(selectedClientObj.cnpj || selectedClientObj.cpf) && (
+              <span className="ml-2 text-muted-foreground text-caption">· {selectedClientObj.cnpj || selectedClientObj.cpf}</span>
             )}
           </span>
           <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={handleClear}>
@@ -95,45 +128,43 @@ export function ClientSearchPanel({ clients, selectedClient, onSelectClient }: C
           </Button>
         </div>
       ) : (
-        <>
-          <div className="flex gap-2">
-            <Select value={docType} onValueChange={(v: DocType) => { setDocType(v); setDocValue(""); setSuggestions([]); }}>
-              <SelectTrigger className="h-9 w-[110px] shrink-0">
-                <SelectValue placeholder="Tipo..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cpf">CPF</SelectItem>
-                <SelectItem value="cnpj">CNPJ</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="relative flex-1">
-              <Input
-                ref={inputRef}
-                placeholder={!docType ? "Selecione o tipo →" : docType === "cpf" ? "000.000.000-00" : "00.000.000/0000-00"}
-                value={docValue}
-                onChange={(e) => handleDocChange(e.target.value)}
-                onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-                disabled={!docType}
-                className="h-9"
-                maxLength={docType === "cpf" ? 14 : 18}
-              />
-              {showSuggestions && (
-                <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-md border bg-popover shadow-md max-h-48 overflow-auto">
-                  {suggestions.map(c => (
-                    <button
-                      key={c.id}
-                      className="w-full text-left px-3 py-2 text-ui hover:bg-accent transition-colors"
-                      onClick={() => handleSelect(c)}
-                    >
-                      <span className="font-medium">{c.responsible_name || c.store_name}</span>
-                      {c.cnpj && <span className="ml-2 text-muted-foreground text-caption">· {c.cnpj}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+        <div className="flex gap-2">
+          <Select value={searchType} onValueChange={(v: SearchType) => handleTypeChange(v)}>
+            <SelectTrigger className="h-9 w-[150px] shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="nome">Nome Fantasia</SelectItem>
+              <SelectItem value="doc">CPF/CNPJ</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="relative flex-1">
+            <Input
+              ref={inputRef}
+              placeholder={placeholder}
+              value={value}
+              onChange={(e) => handleChange(e.target.value)}
+              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+              className="h-9"
+              maxLength={searchType === "doc" ? 18 : undefined}
+              preserveCase={searchType === "doc"}
+            />
+            {showSuggestions && (
+              <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-md border bg-popover shadow-md max-h-56 overflow-auto">
+                {suggestions.map(c => (
+                  <button
+                    key={c.id}
+                    className="w-full text-left px-3 py-2 text-ui hover:bg-accent transition-colors"
+                    onClick={() => handleSelect(c)}
+                  >
+                    <span className="font-medium">{c.nome_fantasia || c.store_name || c.responsible_name}</span>
+                    {(c.cnpj || c.cpf) && <span className="ml-2 text-muted-foreground text-caption">· {c.cnpj || c.cpf}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
