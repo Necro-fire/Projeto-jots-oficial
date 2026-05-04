@@ -89,8 +89,12 @@ export default function Caixa() {
       else if (m.tipo === "sangria") { sangrias += m.valor; }
       else if (m.tipo === "reforco") { reforcos += m.valor; }
       else if (m.tipo === "despesa") { despesas += m.valor; }
+      else if (m.tipo === "cancelamento" || m.tipo === "cancelamento_item") {
+        // Estorno: valor já vem negativo do backend, soma direto em vendas
+        vendas += m.valor;
+      }
 
-      if (m.tipo === "venda" || m.tipo === "reforco") {
+      if (m.tipo === "venda" || m.tipo === "reforco" || m.tipo === "cancelamento" || m.tipo === "cancelamento_item") {
         porForma[m.forma_pagamento] = (porForma[m.forma_pagamento] || 0) + m.valor;
       }
     }
@@ -168,8 +172,8 @@ export default function Caixa() {
     }
   }
 
-  const tipoLabel: Record<string, string> = { venda: "Venda", sangria: "Sangria", reforco: "Reforço", despesa: "Despesa" };
-  const tipoColor: Record<string, string> = { venda: "bg-primary/10 text-primary", sangria: "bg-destructive/10 text-destructive", reforco: "bg-accent/10 text-accent-foreground", despesa: "bg-warning/10 text-warning-foreground" };
+  const tipoLabel: Record<string, string> = { venda: "Venda", sangria: "Sangria", reforco: "Reforço", despesa: "Despesa", cancelamento: "Estorno", cancelamento_item: "Estorno item" };
+  const tipoColor: Record<string, string> = { venda: "bg-primary/10 text-primary", sangria: "bg-destructive/10 text-destructive", reforco: "bg-accent/10 text-accent-foreground", despesa: "bg-warning/10 text-warning-foreground", cancelamento: "bg-destructive/10 text-destructive", cancelamento_item: "bg-destructive/10 text-destructive" };
 
   const viewingCaixa = selectedCaixa || caixaAberto;
 
@@ -365,8 +369,8 @@ export default function Caixa() {
                                 <TableCell className="text-sm max-w-[200px] truncate">{m.descricao || "—"}</TableCell>
                                 <TableCell className="text-xs">{FORMAS_PAGAMENTO.find(f => f.value === m.forma_pagamento)?.label || m.forma_pagamento}</TableCell>
                                 <TableCell className="text-xs">{m.usuario_nome}</TableCell>
-                                <TableCell className={`text-right font-semibold tabular-nums text-sm ${m.tipo === "sangria" || m.tipo === "despesa" ? "text-destructive" : "text-primary"}`}>
-                                  {m.tipo === "sangria" || m.tipo === "despesa" ? "- " : "+ "}{formatCurrency(m.valor)}
+                                <TableCell className={`text-right font-semibold tabular-nums text-sm ${m.valor < 0 || m.tipo === "sangria" || m.tipo === "despesa" ? "text-destructive" : "text-primary"}`}>
+                                  {m.valor < 0 ? "" : (m.tipo === "sangria" || m.tipo === "despesa" ? "- " : "+ ")}{formatCurrency(m.valor)}
                                 </TableCell>
                               </TableRow>
                             ))}
