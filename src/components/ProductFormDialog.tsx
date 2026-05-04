@@ -102,6 +102,7 @@ export function ProductFormDialog({
   const [ponteArmacao, setPonteArmacao] = useState("");
   const [ncm, setNcm] = useState("");
   const [classificacao, setClassificacao] = useState("");
+  const [classificacaoMode, setClassificacaoMode] = useState<"predefinida" | "personalizado">("predefinida");
 
   // Accessory fields (new hierarchical)
   const [subcategoriaAcessorio, setSubcategoriaAcessorio] = useState(""); // legacy compat
