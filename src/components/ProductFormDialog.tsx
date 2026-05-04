@@ -231,6 +231,7 @@ export function ProductFormDialog({
     setPonteArmacao("");
     setNcm("");
     setClassificacao("");
+    setClassificacaoMode("predefinida");
     setSubcategoriaAcessorio("");
     setCategoriaAcessorio("");
     setTipoAcessorio("");
