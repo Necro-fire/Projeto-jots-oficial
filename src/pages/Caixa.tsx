@@ -89,8 +89,12 @@ export default function Caixa() {
       else if (m.tipo === "sangria") { sangrias += m.valor; }
       else if (m.tipo === "reforco") { reforcos += m.valor; }
       else if (m.tipo === "despesa") { despesas += m.valor; }
+      else if (m.tipo === "cancelamento" || m.tipo === "cancelamento_item") {
+        // Estorno: valor já vem negativo do backend, soma direto em vendas
+        vendas += m.valor;
+      }
 
-      if (m.tipo === "venda" || m.tipo === "reforco") {
+      if (m.tipo === "venda" || m.tipo === "reforco" || m.tipo === "cancelamento" || m.tipo === "cancelamento_item") {
         porForma[m.forma_pagamento] = (porForma[m.forma_pagamento] || 0) + m.valor;
       }
     }
