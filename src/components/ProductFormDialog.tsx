@@ -1234,7 +1234,7 @@ export function ProductFormDialog({
               <div className="mt-1.5">
                 <Input
                   type="number"
-                  min={1}
+                  min={0}
                   value={quantidade}
                   onChange={(e) => setQuantidade(e.target.value)}
                   className="w-20 text-center font-semibold tabular-nums"
