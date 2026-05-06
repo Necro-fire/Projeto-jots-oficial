@@ -69,7 +69,7 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
 
   // Form de produto novo (temporário)
   const [novoNome, setNovoNome] = useState("");
-  const [novoQtd, setNovoQtd] = useState(1);
+  const [novoQtd, setNovoQtd] = useState(0);
   const [novoCusto, setNovoCusto] = useState(0);
 
   // Pós-venda: fila de cadastro de produtos pendentes
@@ -146,7 +146,7 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
       produto_id: p.id,
       produto_code: p.code,
       produto_model: p.model,
-      quantidade: 1,
+      quantidade: 0,
       valor_unitario: p.custo || 0,
       total: p.custo || 0,
     }]);
@@ -608,7 +608,7 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
                           type="number"
                           min={1}
                           value={item.quantidade}
-                          onChange={e => updateItem(idx, "quantidade", parseInt(e.target.value) || 1)}
+                          onChange={e => updateItem(idx, "quantidade", Math.max(0, parseInt(e.target.value) || 0))}
                           className="h-8 w-20"
                         />
                       </TableCell>

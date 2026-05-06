@@ -22,7 +22,7 @@ export function EditConsignadoDialog({ open, onOpenChange, item }: Props) {
   const { user, profile } = useAuth();
 
   const [clienteId, setClienteId] = useState("");
-  const [quantidade, setQuantidade] = useState(1);
+  const [quantidade, setQuantidade] = useState(0);
   const [observacoes, setObservacoes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 

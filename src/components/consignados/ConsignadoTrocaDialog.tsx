@@ -22,8 +22,8 @@ export function ConsignadoTrocaDialog({ open, onOpenChange, item }: Props) {
   const { user, profile } = useAuth();
 
   const [novoProdutoId, setNovoProdutoId] = useState("");
-  const [novaQuantidade, setNovaQuantidade] = useState(1);
-  const [trocaQuantidade, setTrocaQuantidade] = useState(1);
+  const [novaQuantidade, setNovaQuantidade] = useState(0);
+  const [trocaQuantidade, setTrocaQuantidade] = useState(0);
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
