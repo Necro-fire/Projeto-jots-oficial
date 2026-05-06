@@ -75,7 +75,7 @@ export function ProductFormDialog({
   const canViewCost = hasPermission('produtos', 'view_cost');
   const [detail, setDetail] = useState("");
   const [filial, setFilial] = useState("");
-  const [quantidade, setQuantidade] = useState("1");
+  const [quantidade, setQuantidade] = useState("0");
   
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -210,7 +210,7 @@ export function ProductFormDialog({
     setCusto(0);
     setDetail("");
     setFilial(filialLocked ? selectedFilial : "");
-    setQuantidade("1");
+    setQuantidade("0");
     
     setImageFile(null);
     setImagePreview(null);
@@ -395,7 +395,7 @@ export function ProductFormDialog({
         subcategoriaAcessorio: subcatComputed,
       });
 
-      const qty = Number(quantidade) || 1;
+      const qty = Math.max(0, Number(quantidade) || 0);
 
       const accessoryFields = {
         categoria_acessorio: isAcessorio ? categoriaAcessorio : "",
