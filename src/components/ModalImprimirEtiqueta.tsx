@@ -60,7 +60,8 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
         JsBarcode(previewBarcodeRef.current, produto.codigoBarras, { ...opts, width: 1.4, height: 40 });
       }
       if (printBarcodeRef.current) {
-        JsBarcode(printBarcodeRef.current, produto.codigoBarras, { ...opts, width: 2, height: 40 });
+        // High-resolution barcode: thicker bars + taller for crisp thermal print
+        JsBarcode(printBarcodeRef.current, produto.codigoBarras, { ...opts, width: 3, height: 80 });
       }
     } catch {
       // invalid barcode — leave svg empty
@@ -133,17 +134,17 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               style={{ width: "570px", height: "72px" }}
               aria-label="Preview da etiqueta"
             >
-              {/* Área 2: logo 37.4–67mm = 224–402px */}
+              {/* Área 2: logo 34.9–64.5mm = 209–387px (−2.5mm total) */}
               <div
                 className="absolute top-0 bottom-0 flex items-center justify-center"
-                style={{ left: "224px", width: "178px" }}
+                style={{ left: "209px", width: "178px" }}
               >
                 {logoDataUrl && <img src={logoDataUrl} alt="JOTS" className="max-h-[60px] max-w-full object-contain" />}
               </div>
-              {/* Área 3: barcode 70–95mm = 420–570px */}
+              {/* Área 3: barcode 67,5–92,5mm = 405–555px (−2.5mm total) */}
               <div
                 className="absolute top-0 bottom-0 flex flex-col items-center justify-center"
-                style={{ left: "420px", width: "150px" }}
+                style={{ left: "405px", width: "150px" }}
               >
                 <svg ref={previewBarcodeRef} className="max-w-full" />
                 <span className="text-[9px] font-bold tabular-nums leading-none mt-0.5">
@@ -185,11 +186,11 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
             overflow: "hidden",
           }}
         >
-          {/* Área 2: logo 37.4mm → 67mm (largura 29.6mm) */}
+          {/* Área 2: logo 34.9mm → 64.5mm (−2.5mm total) */}
           <div
             style={{
               position: "absolute",
-              left: "37.4mm",
+              left: "34.9mm",
               top: 0,
               width: "29.6mm",
               height: "12mm",
@@ -202,15 +203,21 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               <img
                 src={logoDataUrl}
                 alt="JOTS"
-                style={{ maxHeight: "10mm", maxWidth: "100%", objectFit: "contain", display: "block" }}
+                style={{
+                  height: "10mm",
+                  width: "auto",
+                  maxWidth: "29mm",
+                  objectFit: "contain",
+                  display: "block",
+                }}
               />
             )}
           </div>
-          {/* Área 3: barcode 70mm → 95mm (largura 25mm) */}
+          {/* Área 3: barcode 67,5mm → 92,5mm (−2.5mm total) */}
           <div
             style={{
               position: "absolute",
-              left: "70mm",
+              left: "67.5mm",
               top: 0,
               width: "25mm",
               height: "12mm",
@@ -222,16 +229,19 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
           >
             <svg
               ref={printBarcodeRef}
-              style={{ width: "24mm", height: "8mm", display: "block" }}
-              preserveAspectRatio="none"
+              style={{ width: "24mm", height: "6.5mm", display: "block" }}
             />
             <span
               style={{
-                fontFamily: "monospace",
-                fontWeight: 700,
-                fontSize: "2mm",
+                fontFamily: "Arial, Helvetica, sans-serif",
+                fontWeight: 900,
+                fontSize: "2.1mm",
+                letterSpacing: "0.15mm",
                 lineHeight: 1,
                 marginTop: "0.3mm",
+                color: "#000",
+                WebkitTextStroke: "0.04mm #000",
+                whiteSpace: "nowrap",
               }}
             >
               {produto.codigoBarras}

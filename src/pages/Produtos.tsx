@@ -29,10 +29,11 @@ export default function Produtos() {
   const { filters, setFilters } = useProductFilters();
   const { hasPermission } = useAuth();
   const isMobile = useIsMobile();
-  const canCreate = hasPermission('Produtos', 'create');
-  const canEdit = hasPermission('Produtos', 'edit');
-  const canDelete = hasPermission('Produtos', 'delete');
-  const canViewImages = hasPermission('Produtos', 'view_images');
+  const canCreate = hasPermission('produtos', 'create');
+  const canEdit = hasPermission('produtos', 'edit');
+  const canDelete = hasPermission('produtos', 'delete');
+  const canManageAtacado = hasPermission('produtos', 'manage_atacado');
+  const canExportImage = hasPermission('produtos', 'export_image');
   const [zoomImage, setZoomImage] = useState<{ url: string; name: string; category?: string; classificacao?: string; haste?: number; lente?: number; ponte?: number } | null>(null);
   const [etiquetaProduto, setEtiquetaProduto] = useState<DbProduct | null>(null);
 
@@ -223,11 +224,13 @@ export default function Produtos() {
             <p className="text-ui text-muted-foreground">{filtered.length} produtos</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Button size="sm" variant="outline" className="gap-1.5 text-[#25D366] hover:text-[#25D366]" onClick={handleExportAll} disabled={exporting}>
-              <WhatsAppIcon className="h-4 w-4" />
-              {exporting ? "Preparando..." : "Enviar por WhatsApp"}
-            </Button>
-            {canCreate && (
+            {canExportImage && (
+              <Button size="sm" variant="outline" className="gap-1.5 text-[#25D366] hover:text-[#25D366]" onClick={handleExportAll} disabled={exporting}>
+                <WhatsAppIcon className="h-4 w-4" />
+                {exporting ? "Preparando..." : "Enviar por WhatsApp"}
+              </Button>
+            )}
+            {canManageAtacado && (
               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowAtacado(true)}>
                 <ShoppingCart className="h-4 w-4" />
                 Atacado
@@ -250,7 +253,7 @@ export default function Produtos() {
               return (
                 <div key={product.id} className="rounded-lg shadow-card bg-card p-3 group hover:shadow-md transition-shadow relative">
                     <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {canViewImages && product.image_url && (
+                      {product.image_url && (
                         <Button variant="secondary" size="icon" className="h-7 w-7" title="Visualizar" onClick={() => setZoomImage({ url: product.image_url, name: product.model || product.referencia, category: product.category, classificacao: (product as any).classificacao, haste: product.temple_size, lente: product.lens_size, ponte: product.bridge_size })}>
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
@@ -331,7 +334,7 @@ export default function Produtos() {
                         </Badge>
                       );
                     })()}
-                    {product.image_url && (
+                    {canExportImage && product.image_url && (
                       <Button
                         variant="ghost"
                         size="icon"

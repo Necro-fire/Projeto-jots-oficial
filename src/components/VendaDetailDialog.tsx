@@ -553,7 +553,7 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                     <TableHead className="text-center">Qtd</TableHead>
                     <TableHead className="text-right">Unit.</TableHead>
                     <TableHead className="text-right">Total</TableHead>
-                    {!isCancelled && hasPermission('Vendas', 'cancel') && (
+                    {!isCancelled && hasPermission('vendas', 'cancel') && (
                       <TableHead className="w-10"></TableHead>
                     )}
                   </TableRow>
@@ -572,7 +572,7 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                         <TableCell className="text-center tabular-nums">{item.quantity}</TableCell>
                         <TableCell className="text-right tabular-nums">R$ {Number(item.unit_price).toFixed(2)}</TableCell>
                         <TableCell className={`text-right tabular-nums font-medium ${isItemCancelled ? "line-through" : ""}`}>R$ {Number(item.total).toFixed(2)}</TableCell>
-                        {!isCancelled && hasPermission('Vendas', 'cancel') && (
+                        {!isCancelled && hasPermission('vendas', 'cancel') && (
                           <TableCell>
                             {!isItemCancelled && (
                               <Button
@@ -691,7 +691,7 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
           )}
 
           {/* Cancel button */}
-          {!isCancelled && hasPermission('Vendas', 'cancel') && (
+          {!isCancelled && hasPermission('vendas', 'cancel') && (
             <>
               <Separator />
               <Button

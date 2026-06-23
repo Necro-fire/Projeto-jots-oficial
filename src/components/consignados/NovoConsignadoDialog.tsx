@@ -25,7 +25,7 @@ export function NovoConsignadoDialog({ open, onOpenChange }: Props) {
 
   const [produtoId, setProdutoId] = useState("");
   const [clienteId, setClienteId] = useState("");
-  const [quantidade, setQuantidade] = useState(1);
+  const [quantidade, setQuantidade] = useState(0);
   const [observacoes, setObservacoes] = useState("");
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);

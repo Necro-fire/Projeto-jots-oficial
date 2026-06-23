@@ -71,7 +71,7 @@ export default function PDV() {
   const [submitting, setSubmitting] = useState(false);
   const { selectedFilial, setSelectedFilial } = useFilial();
   const { user, profile, hasPermission } = useAuth();
-  const canSell = hasPermission('PDV', 'sell');
+  const canSell = hasPermission('pdv', 'sell');
   const searchRef = useRef<HTMLInputElement>(null);
   const [pendingFilial, setPendingFilial] = useState<string | null>(null);
   const location = useLocation();

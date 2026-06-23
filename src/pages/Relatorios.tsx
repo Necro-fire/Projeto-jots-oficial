@@ -26,7 +26,7 @@ export default function Relatorios() {
   const { preset, range, onChange } = useDateRangeFilter();
   const [generating, setGenerating] = useState<string | null>(null);
   const { hasPermission } = useAuth();
-  const canExport = hasPermission('Relatórios', 'export');
+  const canExport = hasPermission('relatorios', 'export');
 
   const generateReport = async (report: typeof reports[0]) => {
     setGenerating(report.key);
