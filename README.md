@@ -1,73 +1,137 @@
-# Welcome to your Lovable project
+# Nome do Projeto
 
-## Project info
+Aplicação web desenvolvida para [descrição breve da finalidade do projeto].
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 1. Descrição
 
-## How can I edit this code?
+Este projeto consiste em uma aplicação web desenvolvida com React e TypeScript, utilizando Vite como ferramenta de desenvolvimento e build.
 
-There are several ways of editing your application.
+A aplicação foi estruturada com foco em organização, facilidade de manutenção e desenvolvimento de uma interface responsiva.
 
-**Use Lovable**
+## 2. Tecnologias Utilizadas
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+* React
+* TypeScript
+* Vite
+* Tailwind CSS
+* shadcn/ui
 
-Changes made via Lovable will be committed automatically to this repo.
+## 3. Requisitos
 
-**Use your preferred IDE**
+Para executar o projeto localmente, é necessário ter instalado:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+* Node.js
+* npm
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Verifique as versões instaladas com:
 
-Follow these steps:
+```bash
+node --version
+npm --version
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 4. Instalação
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Clone o repositório:
 
-# Step 3: Install the necessary dependencies.
-npm i
+```bash
+git clone <URL_DO_REPOSITORIO>
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Acesse o diretório do projeto:
+
+```bash
+cd <NOME_DO_PROJETO>
+```
+
+Instale as dependências:
+
+```bash
+npm install
+```
+
+## 5. Execução
+
+Para iniciar o servidor de desenvolvimento:
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Após a inicialização, o endereço da aplicação será informado no terminal.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Por padrão:
 
-**Use GitHub Codespaces**
+```text
+http://localhost:5173
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 6. Configuração
 
-## What technologies are used for this project?
+Caso sejam utilizadas variáveis de ambiente, crie um arquivo `.env` na raiz do projeto e adicione as configurações necessárias.
 
-This project is built with:
+Exemplo:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```env
+VITE_EXEMPLO=valor
+```
 
-## How can I deploy this project?
+Não publique no repositório informações sensíveis, como senhas, tokens ou chaves privadas.
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## 7. Build de Produção
 
-## Can I connect a custom domain to my Lovable project?
+Para gerar a versão de produção:
 
-Yes, you can!
+```bash
+npm run build
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Para visualizar o build localmente:
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```bash
+npm run preview
+```
+
+## 8. Estrutura do Projeto
+
+A estrutura principal do projeto está organizada da seguinte forma:
+
+```text
+├── public/
+├── src/
+│   ├── assets/
+│   ├── components/
+│   ├── pages/
+│   ├── App.tsx
+│   └── main.tsx
+├── .gitignore
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── README.md
+```
+
+## 9. Controle de Versão
+
+O projeto utiliza Git para controle de versão.
+
+Para registrar e enviar alterações:
+
+```bash
+git add .
+git commit -m "Descrição da alteração"
+git push
+```
+
+## 10. Publicação
+
+Após a execução do build, os arquivos gerados podem ser publicados em um serviço de hospedagem compatível com aplicações desenvolvidas com Vite.
+
+As variáveis de ambiente necessárias devem ser configuradas de acordo com o ambiente de publicação.
+
+## 11. Observações
+
+* Mantenha as dependências do projeto atualizadas quando necessário.
+* Não publique informações sensíveis no repositório.
+* Utilize um arquivo `.env.example` para documentar as variáveis de ambiente necessárias, caso aplicável.
+* Verifique as dependências existentes antes de realizar alterações estruturais no projeto.
