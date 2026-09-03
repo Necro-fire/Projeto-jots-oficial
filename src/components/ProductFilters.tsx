@@ -132,7 +132,11 @@ export function applyProductFilters<T extends {
       }
     }
     if (filters.estilo !== "all" && p.estilo !== filters.estilo) return false;
-    if (filters.corArmacao !== "all" && p.cor_armacao !== filters.corArmacao) return false;
+    if (filters.corArmacao !== "all") {
+      // Suporta produtos com múltiplas cores (lista separada por vírgula)
+      const cores = (p.cor_armacao || "").split(",").map(c => c.trim());
+      if (!cores.includes(filters.corArmacao)) return false;
+    }
     
     if (filters.materialAro !== "all" && p.material_aro !== filters.materialAro) return false;
     if (filters.materialHaste !== "all" && p.material_haste !== filters.materialHaste) return false;
@@ -168,10 +172,11 @@ export function applyProductFilters<T extends {
     }
     if (filters.corAcessorio !== "all") {
       const pCor = (p as any).cor_acessorio || "";
+      const coresAc = pCor.split(",").map((c: string) => c.trim()).filter(Boolean);
       if (filters.corAcessorio === "Nenhuma") {
-        if (pCor && pCor !== "" && pCor !== "Nenhuma") return false;
+        if (coresAc.length > 0 && !coresAc.includes("Nenhuma")) return false;
       } else {
-        if (pCor !== filters.corAcessorio) return false;
+        if (!coresAc.includes(filters.corAcessorio)) return false;
       }
     }
 
