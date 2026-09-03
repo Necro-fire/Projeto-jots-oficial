@@ -32,11 +32,11 @@ export function MultiColorSelect({
   const setAt = (index: number, value: string) => {
     const next = [...rows];
     next[index] = value;
-    onChange(next.filter(Boolean));
+    onChange(next);
   };
 
   const removeAt = (index: number) => {
-    onChange(rows.filter((_, i) => i !== index).filter(Boolean));
+    onChange(rows.filter((_, i) => i !== index));
   };
 
   const canAdd = rows.length < max && rows.every(Boolean);
@@ -75,7 +75,7 @@ export function MultiColorSelect({
           variant="ghost"
           size="sm"
           className="h-7 gap-1 px-1 text-xs text-primary"
-          onClick={() => onChange([...rows.filter(Boolean), ""].filter((_, i, a) => i < a.length))}
+          onClick={() => onChange([...rows, ""])}
           disabled={disabled}
         >
           <Plus className="h-3.5 w-3.5" /> Adicionar outra cor
