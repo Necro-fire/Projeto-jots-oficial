@@ -1,0 +1,96 @@
+import { Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface MultiColorSelectProps {
+  /** Cores selecionadas (compatível com produtos antigos de cor única). */
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: readonly string[] | string[];
+  placeholder?: string;
+  /** Máximo de cores por componente (independente dos demais campos). */
+  max?: number;
+  disabled?: boolean;
+}
+
+/**
+ * Seletor de múltiplas cores: mantém a primeira linha sempre visível
+ * e permite adicionar até `max` cores, cada uma removível individualmente.
+ * Evita duplicidade ocultando as cores já escolhidas nas demais linhas.
+ */
+export function MultiColorSelect({
+  values,
+  onChange,
+  options,
+  placeholder = "Selecione a cor",
+  max = 5,
+  disabled,
+}: MultiColorSelectProps) {
+  const rows = values.length > 0 ? values : [""];
+  const sorted = [...options].sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  const setAt = (index: number, value: string) => {
+    const next = [...rows];
+    next[index] = value;
+    onChange(next.filter(Boolean));
+  };
+
+  const removeAt = (index: number) => {
+    onChange(rows.filter((_, i) => i !== index).filter(Boolean));
+  };
+
+  const canAdd = rows.length < max && rows.every(Boolean);
+
+  return (
+    <div className="space-y-2">
+      {rows.map((value, index) => {
+        const available = sorted.filter(c => c === value || !rows.includes(c));
+        return (
+          <div key={index} className="flex items-center gap-1.5">
+            <Select value={value} onValueChange={(v) => setAt(index, v)} disabled={disabled}>
+              <SelectTrigger className="flex-1"><SelectValue placeholder={placeholder} /></SelectTrigger>
+              <SelectContent>
+                {available.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {rows.length > 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                title="Remover cor"
+                onClick={() => removeAt(index)}
+                disabled={disabled}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        );
+      })}
+      {canAdd && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-1 text-xs text-primary"
+          onClick={() => onChange([...rows.filter(Boolean), ""].filter((_, i, a) => i < a.length))}
+          disabled={disabled}
+        >
+          <Plus className="h-3.5 w-3.5" /> Adicionar outra cor
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Converte o valor do banco (texto único ou lista separada por vírgula) em array. */
+export function parseCores(value?: string | null): string[] {
+  return (value || "").split(",").map(s => s.trim()).filter(Boolean);
+}
+
+/** Serializa a lista de cores para persistência (compatível com cor única). */
+export function joinCores(values: string[]): string {
+  return values.filter(Boolean).join(", ");
+}
