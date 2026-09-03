@@ -13,7 +13,7 @@ export const GENEROS = ["Masculino", "Feminino", "Unissex"] as const;
 
 export const ESTILOS = [
   "Aviador", "Esportivo", "Fio de Nylon", "Gatinho", "Parafusada (Bucha)",
-  "Parafusada (Parafuso)", "Quadrado", "Redondo", "Retrô",
+  "Parafusada (Parafuso)", "Quadrado", "Redondo", "Retrô", "Oval", "Retangular",
 ] as const;
 
 export const CORES_SOLIDAS = [
