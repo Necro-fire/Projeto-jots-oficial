@@ -3,6 +3,8 @@ import JsBarcode from "jsbarcode";
 import { Printer, Tag } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import etiquetaLogo from "@/assets/jots-logo-etiqueta.png";
 
 interface Props {
@@ -21,6 +23,16 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
   const printBarcodeRef = useRef<SVGSVGElement>(null);
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
   const [logoReady, setLogoReady] = useState(false);
+  // Modelo de etiqueta: padrão (logo ao centro, código à direita) ou
+  // alternativa horizontal (código à esquerda, logo ao centro-esquerda).
+  const [modelo, setModelo] = useState<"padrao" | "alternativa">("padrao");
+  const alt = modelo === "alternativa";
+  // Posições em mm dentro da etiqueta de 95mm
+  const logoLeftMm = alt ? 30.5 : 34.9;
+  const barcodeLeftMm = alt ? 2.5 : 67.5;
+  // Preview em 6px/mm
+  const logoLeftPx = logoLeftMm * 6;
+  const barcodeLeftPx = barcodeLeftMm * 6;
 
   // Pre-load logo as a data URL so it's guaranteed to render at print time,
   // even on browsers that skip un-decoded external images during printing.
@@ -127,6 +139,17 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
             <DialogDescription>Etiqueta 95mm × 12mm — impressão via navegador</DialogDescription>
           </DialogHeader>
 
+          <div className="space-y-1.5">
+            <Label className="text-xs">Modelo da etiqueta</Label>
+            <Select value={modelo} onValueChange={(v) => setModelo(v as "padrao" | "alternativa")}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="padrao">Padrão — logo ao centro, código à direita</SelectItem>
+                <SelectItem value="alternativa">Alternativa — código à esquerda, logo ao centro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Preview ampliado (6px/mm) — apenas visual no modal */}
           <div className="border rounded-md bg-white p-2 overflow-x-auto">
             <div
@@ -137,14 +160,14 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
               {/* Área 2: logo 34.9–64.5mm = 209–387px (−2.5mm total) */}
               <div
                 className="absolute top-0 bottom-0 flex items-center justify-center"
-                style={{ left: "209px", width: "178px" }}
+                style={{ left: `${logoLeftPx}px`, width: "178px" }}
               >
                 {logoDataUrl && <img src={logoDataUrl} alt="JOTS" className="max-h-[60px] max-w-full object-contain" />}
               </div>
               {/* Área 3: barcode 67,5–92,5mm = 405–555px (−2.5mm total) */}
               <div
                 className="absolute top-0 bottom-0 flex flex-col items-center justify-center"
-                style={{ left: "405px", width: "150px" }}
+                style={{ left: `${barcodeLeftPx}px`, width: "150px" }}
               >
                 <svg ref={previewBarcodeRef} className="max-w-full" />
                 <span className="text-[9px] font-bold tabular-nums leading-none mt-0.5">
@@ -190,7 +213,7 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
           <div
             style={{
               position: "absolute",
-              left: "34.9mm",
+              left: `${logoLeftMm}mm`,
               top: 0,
               width: "29.6mm",
               height: "12mm",
@@ -217,7 +240,7 @@ export function ModalImprimirEtiqueta({ open, onClose, produto }: Props) {
           <div
             style={{
               position: "absolute",
-              left: "67.5mm",
+              left: `${barcodeLeftMm}mm`,
               top: 0,
               width: "25mm",
               height: "12mm",
