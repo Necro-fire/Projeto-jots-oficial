@@ -20,12 +20,12 @@ export const CORES_SOLIDAS = [
   "Amarelo", "Azul", "Bege", "Branco", "Champanhe", "Cinza", "Dourado",
   "Grafite", "Laranja", "Lilás", "Marrom", "Oncinha", "Prata", "Preto",
   "Rosa", "Rose Gold", "Roxo", "Tartaruga", "Transparente", "Verde",
-  "Vermelho", "Vinho",
+  "Vermelho", "Vinho","Madeira",
 ] as const;
 
 export const CORES_DEGRADE = [
   "Degradê Amarelo", "Degradê Azul", "Degradê Cinza", "Degradê Marrom",
-  "Degradê Preto", "Degradê Rosa", "Degradê Verde",
+  "Degradê Preto", "Degradê Rosa", "Degradê Verde", "Degradê Vermelho", "Degradê Vinho", "Degradê Roxo", "Degradê Laranja", "Degradê Lilás", "Degradê Tartaruga",
 ] as const;
 
 export const TODAS_CORES = [...CORES_SOLIDAS, ...CORES_DEGRADE] as const;
@@ -35,7 +35,7 @@ export const MATERIAIS_ARO = [
 ] as const;
 
 export const MATERIAIS_HASTE = [
-  "Acetato", "Alumínio", "Gliter", "Metal", "Nylon", "Silicone", "Titanium", "TR90",
+  "Acetato", "Alumínio", "Gliter", "Metal", "Nylon", "Silicone", "Titanium", "TR90", "Bambu",
 ] as const;
 
 // Legacy alias
