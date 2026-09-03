@@ -378,6 +378,10 @@ export function ProductFormDialog({
 
       const subcatComputed = buildSubcategoria();
 
+      // Múltiplas cores: persistidas como lista separada por vírgula (compatível com cor única)
+      const corArmacaoValue = joinCores(coresArmacao);
+      const corAcessorioValue = joinCores(coresAcessorioSel);
+
       const hash = generateProductHash({
         referencia: referencia.trim(),
         classificacao,
