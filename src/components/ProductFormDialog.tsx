@@ -32,6 +32,7 @@ import {
   LENTES_INDICES, LENTES_TRATAMENTOS,
 } from "@/data/accessoryConstants";
 import { Checkbox } from "@/components/ui/checkbox";
+import { MultiColorSelect, parseCores, joinCores } from "@/components/ui/multi-color-select";
 
 interface ProductFormDialogProps {
   open: boolean;
@@ -88,8 +89,8 @@ export function ProductFormDialog({
   const [categoriaIdade, setCategoriaIdade] = useState("");
   const [genero, setGenero] = useState("");
   const [estilo, setEstilo] = useState("");
-  const [corArmacao, setCorArmacao] = useState("");
-  const [corHaste, setCorHaste] = useState("");
+  const [coresArmacao, setCoresArmacao] = useState<string[]>([]);
+  const [coresHaste, setCoresHaste] = useState<string[]>([]);
   const [materialAro, setMaterialAro] = useState("");
   const [materialHaste, setMaterialHaste] = useState("");
   const [lensSize, setLensSize] = useState("");
@@ -109,7 +110,7 @@ export function ProductFormDialog({
   const [categoriaAcessorio, setCategoriaAcessorio] = useState("");
   const [tipoAcessorio, setTipoAcessorio] = useState("");
   const [variacaoAcessorio, setVariacaoAcessorio] = useState("");
-  const [corAcessorio, setCorAcessorio] = useState("");
+  const [coresAcessorioSel, setCoresAcessorioSel] = useState<string[]>([]);
   const [materialAcessorio, setMaterialAcessorio] = useState("");
   const [tipoVenda, setTipoVenda] = useState("");
   // Parafusos dual variations
@@ -163,8 +164,8 @@ export function ProductFormDialog({
       setCategoriaIdade(product.categoria_idade || "");
       setGenero(product.genero || "");
       setEstilo(product.estilo || "");
-      setCorArmacao(product.cor_armacao || "");
-      setCorHaste((product as any).cor_haste || "");
+      setCoresArmacao(parseCores(product.cor_armacao));
+      setCoresHaste(parseCores((product as any).cor_haste));
       setMaterialAro(product.material_aro || "");
       setMaterialHaste(product.material_haste || "");
       setLensSize(product.lens_size ? String(product.lens_size) : "");
@@ -179,7 +180,7 @@ export function ProductFormDialog({
       setCategoriaAcessorio((product as any).categoria_acessorio || "");
       setTipoAcessorio((product as any).tipo_acessorio || "");
       setVariacaoAcessorio((product as any).variacao_acessorio || "");
-      setCorAcessorio((product as any).cor_acessorio || "");
+      setCoresAcessorioSel(parseCores((product as any).cor_acessorio));
       setMaterialAcessorio((product as any).material_acessorio || "");
       setTipoVenda((product as any).tipo_venda || "");
       setNcm((product as any).ncm || "");
@@ -217,8 +218,8 @@ export function ProductFormDialog({
     setCategoriaIdade("");
     setGenero("");
     setEstilo("");
-    setCorArmacao("");
-    setCorHaste("");
+    setCoresArmacao([]);
+    setCoresHaste([]);
     setMaterialAro("");
     setMaterialHaste("");
     setLensSize("");
@@ -236,7 +237,7 @@ export function ProductFormDialog({
     setCategoriaAcessorio("");
     setTipoAcessorio("");
     setVariacaoAcessorio("");
-    setCorAcessorio("");
+    setCoresAcessorioSel([]);
     setMaterialAcessorio("");
     setTipoVenda("");
     setVariacaoRosca("");
@@ -377,13 +378,17 @@ export function ProductFormDialog({
 
       const subcatComputed = buildSubcategoria();
 
+      // Múltiplas cores: persistidas como lista separada por vírgula (compatível com cor única)
+      const corArmacaoValue = joinCores(coresArmacao);
+      const corAcessorioValue = joinCores(coresAcessorioSel);
+
       const hash = generateProductHash({
         referencia: referencia.trim(),
         classificacao,
         categoriaIdade,
         genero,
         estilo,
-        corArmacao,
+        corArmacao: corArmacaoValue,
         materialAro,
         materialHaste,
         lensSize: Number(lensSize) || 0,
@@ -401,7 +406,7 @@ export function ProductFormDialog({
         categoria_acessorio: isAcessorio ? categoriaAcessorio : "",
         tipo_acessorio: isAcessorio ? tipoAcessorio : "",
         variacao_acessorio: isAcessorio ? variacaoAcessorio : "",
-        cor_acessorio: isAcessorio ? corAcessorio : "",
+        cor_acessorio: isAcessorio ? corAcessorioValue : "",
         material_acessorio: isAcessorio ? materialAcessorio : "",
         tipo_venda: isAcessorio ? tipoVenda : "",
       };
@@ -430,9 +435,9 @@ export function ProductFormDialog({
         categoria_idade: isAcessorio ? "" : categoriaIdade,
         genero: isAcessorio ? "" : genero,
         estilo: isAcessorio ? "" : estilo,
-        cor_armacao: isAcessorio ? "" : corArmacao,
-        cor_haste: isAcessorio ? "" : corHaste,
-        color: isAcessorio ? corAcessorio : corArmacao,
+        cor_armacao: isAcessorio ? "" : corArmacaoValue,
+        cor_haste: isAcessorio ? "" : joinCores(coresHaste),
+        color: isAcessorio ? corAcessorioValue : corArmacaoValue,
         material_aro: isAcessorio ? "" : materialAro,
         material_haste: isAcessorio ? "" : materialHaste,
         lens_size: isAcessorio ? 0 : (Number(lensSize) || 0),
@@ -681,21 +686,15 @@ export function ProductFormDialog({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Cor da Armação</Label>
-                    <Select value={corArmacao} onValueChange={setCorArmacao}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione a cor" /></SelectTrigger>
-                      <SelectContent>
-                        {[...TODAS_CORES].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <div className="mt-1.5">
+                      <MultiColorSelect values={coresArmacao} onChange={setCoresArmacao} options={TODAS_CORES} max={5} />
+                    </div>
                   </div>
                   <div>
                     <Label>Cor da Haste</Label>
-                    <Select value={corHaste} onValueChange={setCorHaste}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione a cor" /></SelectTrigger>
-                      <SelectContent>
-                        {sortedCoresSolidas.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <div className="mt-1.5">
+                      <MultiColorSelect values={coresHaste} onChange={setCoresHaste} options={sortedCoresSolidas} max={5} />
+                    </div>
                   </div>
                 </div>
               </fieldset>
@@ -860,7 +859,7 @@ export function ProductFormDialog({
                   onValueChange={(v) => {
                     setCategoriaAcessorio(v);
                     setVariacaoAcessorio("");
-                    setCorAcessorio("");
+                    setCoresAcessorioSel([]);
                     setMaterialAcessorio("");
                     setTipoVenda("");
                     setVariacaoRosca("");
@@ -903,7 +902,7 @@ export function ProductFormDialog({
                     onValueChange={(v) => {
                       setTipoAcessorio(v);
                       setVariacaoAcessorio("");
-                      setCorAcessorio("");
+                      setCoresAcessorioSel([]);
                       setLenteSolarTipo("");
                       setLenteSolarCor("");
                       setLenteBase("");
@@ -933,7 +932,7 @@ export function ProductFormDialog({
                     value={variacaoAcessorio}
                     onValueChange={(v) => {
                       setVariacaoAcessorio(v);
-                      setCorAcessorio("");
+                      setCoresAcessorioSel([]);
                     }}
                   >
                     <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione a variação" /></SelectTrigger>
@@ -1014,14 +1013,14 @@ export function ProductFormDialog({
                 return (
                   <div>
                     <Label>Cor</Label>
-                    <Select value={corAcessorio} onValueChange={setCorAcessorio}>
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione a cor" /></SelectTrigger>
-                    <SelectContent>
-                      {[...cores].filter(c => c !== "Nenhuma").sort((a, b) => a.localeCompare(b, 'pt-BR')).map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="mt-1.5">
+                      <MultiColorSelect
+                        values={coresAcessorioSel}
+                        onChange={setCoresAcessorioSel}
+                        options={[...cores].filter(c => c !== "Nenhuma")}
+                        max={5}
+                      />
+                    </div>
                   </div>
                 );
               })()}

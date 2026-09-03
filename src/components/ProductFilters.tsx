@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 import { matchesProductSearch } from "@/lib/productSearch";
 import { Filter, X, Search, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -132,7 +134,11 @@ export function applyProductFilters<T extends {
       }
     }
     if (filters.estilo !== "all" && p.estilo !== filters.estilo) return false;
-    if (filters.corArmacao !== "all" && p.cor_armacao !== filters.corArmacao) return false;
+    if (filters.corArmacao !== "all") {
+      // Suporta produtos com múltiplas cores (lista separada por vírgula)
+      const cores = (p.cor_armacao || "").split(",").map(c => c.trim());
+      if (!cores.includes(filters.corArmacao)) return false;
+    }
     
     if (filters.materialAro !== "all" && p.material_aro !== filters.materialAro) return false;
     if (filters.materialHaste !== "all" && p.material_haste !== filters.materialHaste) return false;
@@ -168,10 +174,11 @@ export function applyProductFilters<T extends {
     }
     if (filters.corAcessorio !== "all") {
       const pCor = (p as any).cor_acessorio || "";
+      const coresAc = pCor.split(",").map((c: string) => c.trim()).filter(Boolean);
       if (filters.corAcessorio === "Nenhuma") {
-        if (pCor && pCor !== "" && pCor !== "Nenhuma") return false;
+        if (coresAc.length > 0 && !coresAc.includes("Nenhuma")) return false;
       } else {
-        if (pCor !== filters.corAcessorio) return false;
+        if (!coresAc.includes(filters.corAcessorio)) return false;
       }
     }
 
@@ -292,6 +299,34 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
     setOpen(false);
   };
 
+  // Pesquisa rápida (opcional): identifica o produto pelo código digitado/colado/escaneado.
+  // O código digitado é sempre preservado no campo, mesmo sem resultado.
+  const [quickSearch, setQuickSearch] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const lastNotified = useRef("");
+
+  useEffect(() => {
+    if (!quickSearch) { lastNotified.current = ""; return; }
+    const term = filters.search.trim();
+    if (term.length < 4) { lastNotified.current = ""; return; }
+    const timer = setTimeout(() => {
+      if (lastNotified.current === term) return;
+      lastNotified.current = term;
+      const norm = (v?: string) => (v || "").trim().toLowerCase();
+      const t = term.toLowerCase();
+      const found = products.find(p =>
+        norm(p.barcode) === t || norm(p.code) === t || norm(p.referencia) === t
+      );
+      if (found) {
+        toast.success(`Produto identificado: ${found.model || found.referencia}`);
+      } else {
+        toast.error(`Nenhum produto encontrado para o código ${term}`);
+      }
+      searchInputRef.current?.select();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [filters.search, quickSearch, products]);
+
   const handleClear = () => {
     const cleared = { ...emptyFilters, search: filters.search };
     setDraft(cleared);
@@ -305,12 +340,18 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
       <div className="relative flex-1 min-w-[200px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar por modelo, código ou cor..."
+          ref={searchInputRef}
+          placeholder={quickSearch ? "Leia ou digite o código do produto..." : "Buscar por modelo, código ou cor..."}
           value={filters.search}
           onChange={(e) => onChange({ ...filters, search: e.target.value })}
           className="pl-9 h-9"
         />
       </div>
+
+      <label className="flex items-center gap-2 h-9 px-2 rounded-md border text-caption text-muted-foreground cursor-pointer select-none">
+        <Switch checked={quickSearch} onCheckedChange={setQuickSearch} aria-label="Pesquisa rápida" />
+        Pesquisa rápida
+      </label>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) { setDraft({ ...filters }); setPriceError(""); } }}>
         <DialogTrigger asChild>
@@ -529,5 +570,9 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
 interface ProductFiltersProps {
   filters: ProductFilterValues;
   onChange: (filters: ProductFilterValues) => void;
-  products?: { lens_size: number; bridge_size: number; temple_size: number; altura_lente?: number; is_acessorio: boolean; status: string }[];
+  products?: {
+    lens_size: number; bridge_size: number; temple_size: number; altura_lente?: number;
+    is_acessorio: boolean; status: string;
+    barcode?: string; code?: string; referencia?: string; model?: string;
+  }[];
 }
