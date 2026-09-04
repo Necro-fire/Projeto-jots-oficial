@@ -22,7 +22,7 @@ import {
   CLASSIFICACOES, CLASSIFICACOES_OPCOES, CLASSIFICACAO_PERSONALIZADO, CATEGORIAS_IDADE, GENEROS, ESTILOS, TODAS_CORES, CORES_SOLIDAS,
   MATERIAIS_ARO, MATERIAIS_HASTE, TIPOS_LENTE, CORES_LENTE_CLIPON,
   MEDIDAS_LENTE, MEDIDAS_ALTURA_LENTE, MEDIDAS_PONTE, MEDIDAS_HASTE as MEDIDAS_HASTE_RANGE,
-  TIPOS_HASTE, PONTES_ARMACAO, CLASSIFICACOES_PRODUTO, type ClassificacaoProduto,
+  TIPOS_HASTE, PONTES_ARMACAO, CLASSIFICACOES_PRODUTO, NCM_POR_MATERIAL, type ClassificacaoProduto,
 } from "@/data/productConstants";
 import {
   ACESSORIOS_CATEGORIAS, getTiposByCategoria, getVariacoesByTipo,
@@ -605,22 +605,43 @@ export function ProductFormDialog({
                 </div>
               </div>
             )}
-            <div>
-              <Label htmlFor="ncm">{isAcessorio ? "Código do Acessório (NCM) *" : "Código NCM *"}</Label>
-              <Input
-                id="ncm"
-                value={ncm}
-                onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, "").slice(0, 8);
-                  setNcm(v);
-                }}
-                placeholder="Ex: 90049090"
-                maxLength={8}
-                className="mt-1.5"
-              />
-              {ncm.length > 0 && ncm.length < 8 && (
-                <p className="text-xs text-destructive mt-1">{8 - ncm.length} dígitos restantes</p>
+            <div className={isAcessorio ? undefined : "grid grid-cols-2 gap-3"}>
+              {!isAcessorio && (
+                <div>
+                  <Label>Material (NCM)</Label>
+                  <Select
+                    value={NCM_POR_MATERIAL.find(m => m.ncm === ncm)?.material ?? ""}
+                    onValueChange={(v) => {
+                      const found = NCM_POR_MATERIAL.find(m => m.material === v);
+                      if (found) setNcm(found.ncm);
+                    }}
+                  >
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione o material" /></SelectTrigger>
+                    <SelectContent>
+                      {NCM_POR_MATERIAL.map(m => (
+                        <SelectItem key={m.material} value={m.material}>{m.material} — {m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
+              <div>
+                <Label htmlFor="ncm">{isAcessorio ? "Código do Acessório (NCM) *" : "Código NCM *"}</Label>
+                <Input
+                  id="ncm"
+                  value={ncm}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 8);
+                    setNcm(v);
+                  }}
+                  placeholder="Ex: 90049090"
+                  maxLength={8}
+                  className="mt-1.5"
+                />
+                {ncm.length > 0 && ncm.length < 8 && (
+                  <p className="text-xs text-destructive mt-1">{8 - ncm.length} dígitos restantes</p>
+                )}
+              </div>
             </div>
             {isEditing && product && (
               <div>

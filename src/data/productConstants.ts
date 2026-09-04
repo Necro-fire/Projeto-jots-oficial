@@ -133,3 +133,9 @@ export const SUBCATEGORIAS_ACESSORIOS: Record<string, string[]> = {
 };
 
 export const TODAS_SUBCATEGORIAS_ACESSORIOS = Object.values(SUBCATEGORIAS_ACESSORIOS).flat();
+
+// NCM vinculado ao material da armação
+export const NCM_POR_MATERIAL = [
+  { material: "Acetato", ncm: "90031100", label: "9003.11.00" },
+  { material: "Metal", ncm: "90031910", label: "9003.19.10" },
+] as const;
