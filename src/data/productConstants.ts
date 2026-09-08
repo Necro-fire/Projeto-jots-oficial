@@ -1,6 +1,6 @@
 // Fixed options for product registration form fields
 
-export const CLASSIFICACOES = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10"] as const;
+export const CLASSIFICACOES = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10","N/A"] as const;
 export const CLASSIFICACAO_PERSONALIZADO = "Personalizado" as const;
 export const CLASSIFICACOES_OPCOES = [...CLASSIFICACOES, CLASSIFICACAO_PERSONALIZADO] as const;
 
