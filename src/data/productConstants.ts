@@ -13,7 +13,7 @@ export const GENEROS = ["Masculino", "Feminino", "Unissex"] as const;
 
 export const ESTILOS = [
   "Aviador", "Esportivo", "Fio de Nylon", "Gatinho", "Parafusada (Bucha)",
-  "Parafusada (Parafuso)", "Quadrado", "Redondo", "Retrô", "Oval", "Retangular",
+  "Parafusada (Parafuso)", "Quadrado", "Redondo", "Retrô", "Oval", "Retangular", "Hexagonal",
 ] as const;
 
 export const CORES_SOLIDAS = [
@@ -31,11 +31,11 @@ export const CORES_DEGRADE = [
 export const TODAS_CORES = [...CORES_SOLIDAS, ...CORES_DEGRADE] as const;
 
 export const MATERIAIS_ARO = [
-  "Acetato", "Alumínio", "Metal", "Nylon", "Silicone", "Titanium", "TR90",
+  "Acetato", "Alumínio", "Metal", "Nylon", "Silicone", "Titanium", "TR90","Fibra de Carbono", "Bambu", "Madeira",
 ] as const;
 
 export const MATERIAIS_HASTE = [
-  "Acetato", "Alumínio", "Gliter", "Metal", "Nylon", "Silicone", "Titanium", "TR90", "Bambu",
+  "Acetato", "Alumínio", "Gliter", "Metal", "Nylon", "Silicone", "Titanium", "TR90", "Fibra de Carbono", "Bambu", "Madeira",
 ] as const;
 
 // Legacy alias
