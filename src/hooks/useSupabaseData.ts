@@ -112,20 +112,41 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
   const channelRef = useRef<any>(null);
 
   const fetchData = useCallback(async () => {
-    let query = (supabase as any).from(table).select("*");
-    if (filterFilial && selectedFilial !== "all") {
-      query = query.eq("filial_id", selectedFilial);
+    // Supabase/PostgREST caps a single request at 1000 rows.
+    // Fetch in sequential pages so ALL records are loaded, no artificial limit.
+    const PAGE_SIZE = 1000;
+    const all: T[] = [];
+    let from = 0;
+    let failed = false;
+
+    // Safety bound to avoid an infinite loop on unexpected responses
+    for (let page = 0; page < 1000; page++) {
+      let query = (supabase as any).from(table).select("*");
+      if (filterFilial && selectedFilial !== "all") {
+        query = query.eq("filial_id", selectedFilial);
+      }
+      // Apply deterministic sorting (id tiebreaker keeps paging stable)
+      if (table === "produtos") {
+        query = query.order("model", { ascending: true }).order("id", { ascending: true });
+      } else if (table === "clientes") {
+        query = query.order("store_name", { ascending: true }).order("id", { ascending: true });
+      } else {
+        query = query.order("created_at", { ascending: false }).order("id", { ascending: true });
+      }
+      query = query.range(from, from + PAGE_SIZE - 1);
+
+      const { data: rows, error } = await query;
+      if (error) {
+        failed = true;
+        break;
+      }
+      const batch = (rows ?? []) as T[];
+      all.push(...batch);
+      if (batch.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
     }
-    // Apply alphabetical sorting for entity tables
-    if (table === "produtos") {
-      query = query.order("model", { ascending: true });
-    } else if (table === "clientes") {
-      query = query.order("store_name", { ascending: true });
-    } else {
-      query = query.order("created_at", { ascending: false });
-    }
-    const { data: rows, error } = await query;
-    if (!error && rows) setData(rows as T[]);
+
+    if (!failed) setData(all);
     setLoading(false);
   }, [table, selectedFilial, filterFilial]);
 
