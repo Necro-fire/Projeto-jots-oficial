@@ -261,6 +261,39 @@ Deno.serve(async (req) => {
       return json({ success: true, recovery_code: recoveryCode });
     }
 
+    // ─── CREATE ADDITIONAL ADMIN (admin only) ───
+    if (action === 'create-admin') {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader?.startsWith('Bearer ')) return json({ error: 'Não autorizado' }, 401);
+      const callerClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const token = authHeader.replace('Bearer ', '');
+      const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims) return json({ error: 'Token inválido' }, 401);
+      const callerId = claimsData.claims.sub as string;
+      const { data: isAdmin } = await supabaseAdmin.rpc('has_role', { _user_id: callerId, _role: 'admin' });
+      if (!isAdmin) return json({ error: 'Acesso negado' }, 403);
+
+      const cpf = String(data.cpf || '').replace(/\D/g, '');
+      if (!data.nome || cpf.length !== 11 || !data.password || String(data.password).length < 6) {
+        return json({ error: 'Nome, CPF válido e senha (mín. 6) são obrigatórios' }, 400);
+      }
+      const email = `admin_${cpf}@jots.interno`;
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email, password: data.password, email_confirm: true,
+        user_metadata: { nome: data.nome, tipo: 'admin' },
+      });
+      if (authError) return json({ error: authError.message }, 400);
+      await supabaseAdmin.from('profiles').insert({ id: authUser.user.id, nome: data.nome, email, tipo: 'admin' });
+      const { data: adminRole } = await supabaseAdmin.from('roles').select('id').eq('name', 'admin').single();
+      if (adminRole) await supabaseAdmin.from('user_roles').insert({ user_id: authUser.user.id, role_id: adminRole.id });
+      await logAudit(supabaseAdmin, callerId, '', 'create_admin', 'auth', { new_admin: data.nome }, clientIp);
+      return json({ success: true });
+    }
+
     // ─── CREATE EMPLOYEE ───
     if (action === 'create-employee') {
       const authHeader = req.headers.get('Authorization');
