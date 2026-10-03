@@ -233,13 +233,15 @@ export default function Funcionarios() {
             <h1 className="text-title font-semibold tracking-tighter">Funcionários</h1>
             <p className="text-ui text-muted-foreground">{filtered.length} funcionários</p>
           </div>
-          {canCreate && (
-            <Button size="sm" className="gap-1.5" onClick={openCreate}>
-              <Plus className="h-4 w-4" />
-              Novo Funcionário
-            </Button>
-          )}
-          {isAdmin && <NovoAdminDialog />}
+          <div className="flex gap-2">
+            {isAdmin && <NovoAdminDialog />}
+            {canCreate && (
+              <Button size="sm" className="gap-1.5" onClick={openCreate}>
+                <Plus className="h-4 w-4" />
+                Novo Funcionário
+              </Button>
+            )}
+          </div>
         </div>
 
         {funcionarios.length > 0 && (
