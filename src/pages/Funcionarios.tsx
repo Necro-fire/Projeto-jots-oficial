@@ -13,6 +13,7 @@ import { Search, Plus, UserCog, Eye, EyeOff, Pencil, Trash2, Phone, KeyRound } f
 import { toast } from 'sonner';
 import { applyPhoneMask, isValidPhone } from '@/lib/phoneMask';
 import { maskCpf, unmask, isValidCpf } from '@/lib/masks';
+import { NovoAdminDialog } from '@/components/NovoAdminDialog';
 
 interface Funcionario {
   id: string;
@@ -238,6 +239,7 @@ export default function Funcionarios() {
               Novo Funcionário
             </Button>
           )}
+          {isAdmin && <NovoAdminDialog />}
         </div>
 
         {funcionarios.length > 0 && (
