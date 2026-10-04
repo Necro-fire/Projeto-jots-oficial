@@ -263,36 +263,10 @@ export function ProductFormDialog({
     return parts.join(" > ");
   };
 
-  // Check for duplicates when key fields change (only for new products)
+  // Limpa o aviso de duplicidade quando o usuário altera os dados; a verificação completa ocorre ao salvar
   useEffect(() => {
-    if (isEditing || !referencia.trim() || !filial) {
-      setDuplicateInfo(null);
-      return;
-    }
-
-    const checkDuplicate = async () => {
-      const filials = filial === "all" ? ["1", "2", "3"] : [filial];
-      for (const fId of filials) {
-        if (classificacao) {
-          const { data: exactMatch } = await (supabase as any)
-            .from("produtos")
-            .select("id, referencia, classificacao")
-            .eq("referencia", referencia.trim())
-            .eq("classificacao", classificacao)
-            .eq("filial_id", fId)
-            .maybeSingle();
-          if (exactMatch) {
-            setDuplicateInfo(`Este produto já está cadastrado no sistema. (Código "${referencia.trim()}" com classificação ${classificacao} na filial ${fId})`);
-            return;
-          }
-        }
-      }
-      setDuplicateInfo(null);
-    };
-
-    const timeout = setTimeout(checkDuplicate, 500);
-    return () => clearTimeout(timeout);
-  }, [referencia, classificacao, filial, isEditing]);
+    setDuplicateInfo(null);
+  }, [referencia, classificacao, classificacaoProduto, categoriaIdade, genero, estilo, ncm, filial, coresArmacao, materialAro, materialHaste, lensSize, alturaLente, bridgeSize, templeSize, tipoLente, categoriaAcessorio, tipoAcessorio, variacaoAcessorio, coresAcessorioSel, materialAcessorio]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
