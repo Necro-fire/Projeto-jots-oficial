@@ -375,6 +375,13 @@ export function ProductFormDialog({
       setDuplicateInfo(null);
     }
 
+    setSaving(true);
+    try {
+      let imageUrl = isEditing ? (product?.image_url || "") : "";
+      if (imageFile) {
+        imageUrl = await uploadImage(imageFile, name || effectiveReferencia, effectiveClassificacao, { haste: Number(templeSize) || 0, lente: Number(lensSize) || 0, ponte: Number(bridgeSize) || 0 });
+      }
+
       const qty = Math.max(0, Number(quantidade) || 0);
 
       const accessoryFields = {
