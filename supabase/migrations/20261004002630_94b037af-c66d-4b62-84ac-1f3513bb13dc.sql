@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS produtos_referencia_classificacao_filial_unique ON public.produtos (referencia, classificacao, filial_id) WHERE is_acessorio = false;
