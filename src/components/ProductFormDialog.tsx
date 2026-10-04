@@ -344,61 +344,62 @@ export function ProductFormDialog({
     if (!filial) { toast.error("Selecione uma filial"); return; }
     if (!/^\d{8}$/.test(ncm)) { toast.error("Informe um NCM válido com 8 dígitos numéricos"); return; }
 
-    if (duplicateInfo && !isEditing) {
-      toast.error("Este produto já está cadastrado no sistema.");
-      return;
-    }
-
     const effectiveReferencia = isAcessorio ? ncm : referencia.trim();
     const effectiveClassificacao = isAcessorio ? "" : classificacao;
 
-    if (!isAcessorio) {
+    const subcatComputed = buildSubcategoria();
+    const corArmacaoValue = joinCores(coresArmacao);
+    const corAcessorioValue = joinCores(coresAcessorioSel);
+    const tipoLenteForHash = classificacaoProduto === "Clip-on"
+      ? JSON.stringify(cliponLentes)
+      : classificacaoProduto === "Receituário" ? "" : tipoLente;
+
+    const hash = generateProductHash({
+      referencia: referencia.trim(),
+      classificacao: effectiveClassificacao,
+      categoriaIdade,
+      genero,
+      estilo,
+      corArmacao: corArmacaoValue,
+      materialAro,
+      materialHaste,
+      lensSize: Number(lensSize) || 0,
+      alturaLente: Number(alturaLente) || 0,
+      bridgeSize: Number(bridgeSize) || 0,
+      templeSize: Number(templeSize) || 0,
+      tipoLente: tipoLenteForHash,
+      isAcessorio,
+      subcategoriaAcessorio: subcatComputed,
+      ncm,
+      tipoProduto: classificacaoProduto,
+      corAcessorio: corAcessorioValue,
+      materialAcessorio,
+    });
+
+    // Duplicidade por identidade composta (ignora o próprio produto em edição)
+    {
       const filials = isEditing ? [filial] : (filial === "all" ? ["1", "2", "3"] : [filial]);
       for (const fId of filials) {
-        const { data: existing } = await (supabase as any)
+        let q = (supabase as any)
           .from("produtos")
-          .select("id")
-          .eq("referencia", effectiveReferencia)
-          .eq("classificacao", effectiveClassificacao)
+          .select("id, code, referencia, category, categoria_idade, genero, ncm")
+          .eq("hash_produto", hash)
           .eq("filial_id", fId)
-          .maybeSingle();
-        if (existing && (!isEditing || existing.id !== product?.id)) {
-          toast.error("Este produto já está cadastrado no sistema.");
+          .limit(1);
+        if (isEditing && product?.id) q = q.neq("id", product.id);
+        const { data: rows } = await q;
+        const existing = rows?.[0];
+        if (existing) {
+          const desc = [existing.code, existing.referencia, existing.category, existing.categoria_idade, existing.genero, existing.ncm && `NCM ${existing.ncm}`]
+            .filter(Boolean).join(" — ");
+          const msg = `Produto possivelmente duplicado. Já existe um produto com o mesmo nome, NCM e características na filial ${fId}: ${desc}`;
+          setDuplicateInfo(msg);
+          toast.error("Produto possivelmente duplicado", { description: msg });
           return;
         }
       }
+      setDuplicateInfo(null);
     }
-
-    setSaving(true);
-    try {
-      let imageUrl = isEditing ? (product?.image_url || "") : "";
-      if (imageFile) {
-        imageUrl = await uploadImage(imageFile, name || effectiveReferencia, effectiveClassificacao, { haste: Number(templeSize) || 0, lente: Number(lensSize) || 0, ponte: Number(bridgeSize) || 0 });
-      }
-
-      const subcatComputed = buildSubcategoria();
-
-      // Múltiplas cores: persistidas como lista separada por vírgula (compatível com cor única)
-      const corArmacaoValue = joinCores(coresArmacao);
-      const corAcessorioValue = joinCores(coresAcessorioSel);
-
-      const hash = generateProductHash({
-        referencia: referencia.trim(),
-        classificacao,
-        categoriaIdade,
-        genero,
-        estilo,
-        corArmacao: corArmacaoValue,
-        materialAro,
-        materialHaste,
-        lensSize: Number(lensSize) || 0,
-        alturaLente: Number(alturaLente) || 0,
-        bridgeSize: Number(bridgeSize) || 0,
-        templeSize: Number(templeSize) || 0,
-        tipoLente,
-        isAcessorio,
-        subcategoriaAcessorio: subcatComputed,
-      });
 
       const qty = Math.max(0, Number(quantidade) || 0);
 
