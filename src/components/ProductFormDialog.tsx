@@ -263,36 +263,10 @@ export function ProductFormDialog({
     return parts.join(" > ");
   };
 
-  // Check for duplicates when key fields change (only for new products)
+  // Limpa o aviso de duplicidade quando o usuário altera os dados; a verificação completa ocorre ao salvar
   useEffect(() => {
-    if (isEditing || !referencia.trim() || !filial) {
-      setDuplicateInfo(null);
-      return;
-    }
-
-    const checkDuplicate = async () => {
-      const filials = filial === "all" ? ["1", "2", "3"] : [filial];
-      for (const fId of filials) {
-        if (classificacao) {
-          const { data: exactMatch } = await (supabase as any)
-            .from("produtos")
-            .select("id, referencia, classificacao")
-            .eq("referencia", referencia.trim())
-            .eq("classificacao", classificacao)
-            .eq("filial_id", fId)
-            .maybeSingle();
-          if (exactMatch) {
-            setDuplicateInfo(`Este produto já está cadastrado no sistema. (Código "${referencia.trim()}" com classificação ${classificacao} na filial ${fId})`);
-            return;
-          }
-        }
-      }
-      setDuplicateInfo(null);
-    };
-
-    const timeout = setTimeout(checkDuplicate, 500);
-    return () => clearTimeout(timeout);
-  }, [referencia, classificacao, filial, isEditing]);
+    setDuplicateInfo(null);
+  }, [referencia, classificacao, classificacaoProduto, categoriaIdade, genero, estilo, ncm, filial, coresArmacao, materialAro, materialHaste, lensSize, alturaLente, bridgeSize, templeSize, tipoLente, categoriaAcessorio, tipoAcessorio, variacaoAcessorio, coresAcessorioSel, materialAcessorio]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -344,29 +318,61 @@ export function ProductFormDialog({
     if (!filial) { toast.error("Selecione uma filial"); return; }
     if (!/^\d{8}$/.test(ncm)) { toast.error("Informe um NCM válido com 8 dígitos numéricos"); return; }
 
-    if (duplicateInfo && !isEditing) {
-      toast.error("Este produto já está cadastrado no sistema.");
-      return;
-    }
-
     const effectiveReferencia = isAcessorio ? ncm : referencia.trim();
     const effectiveClassificacao = isAcessorio ? "" : classificacao;
 
-    if (!isAcessorio) {
+    const subcatComputed = buildSubcategoria();
+    const corArmacaoValue = joinCores(coresArmacao);
+    const corAcessorioValue = joinCores(coresAcessorioSel);
+    const tipoLenteForHash = classificacaoProduto === "Clip-on"
+      ? JSON.stringify(cliponLentes)
+      : classificacaoProduto === "Receituário" ? "" : tipoLente;
+
+    const hash = generateProductHash({
+      referencia: referencia.trim(),
+      classificacao: effectiveClassificacao,
+      categoriaIdade,
+      genero,
+      estilo,
+      corArmacao: corArmacaoValue,
+      materialAro,
+      materialHaste,
+      lensSize: Number(lensSize) || 0,
+      alturaLente: Number(alturaLente) || 0,
+      bridgeSize: Number(bridgeSize) || 0,
+      templeSize: Number(templeSize) || 0,
+      tipoLente: tipoLenteForHash,
+      isAcessorio,
+      subcategoriaAcessorio: subcatComputed,
+      ncm,
+      tipoProduto: classificacaoProduto,
+      corAcessorio: corAcessorioValue,
+      materialAcessorio,
+    });
+
+    // Duplicidade por identidade composta (ignora o próprio produto em edição)
+    {
       const filials = isEditing ? [filial] : (filial === "all" ? ["1", "2", "3"] : [filial]);
       for (const fId of filials) {
-        const { data: existing } = await (supabase as any)
+        let q = (supabase as any)
           .from("produtos")
-          .select("id")
-          .eq("referencia", effectiveReferencia)
-          .eq("classificacao", effectiveClassificacao)
+          .select("id, code, referencia, category, categoria_idade, genero, ncm")
+          .eq("hash_produto", hash)
           .eq("filial_id", fId)
-          .maybeSingle();
-        if (existing && (!isEditing || existing.id !== product?.id)) {
-          toast.error("Este produto já está cadastrado no sistema.");
+          .limit(1);
+        if (isEditing && product?.id) q = q.neq("id", product.id);
+        const { data: rows } = await q;
+        const existing = rows?.[0];
+        if (existing) {
+          const desc = [existing.code, existing.referencia, existing.category, existing.categoria_idade, existing.genero, existing.ncm && `NCM ${existing.ncm}`]
+            .filter(Boolean).join(" — ");
+          const msg = `Produto possivelmente duplicado. Já existe um produto com o mesmo nome, NCM e características na filial ${fId}: ${desc}`;
+          setDuplicateInfo(msg);
+          toast.error("Produto possivelmente duplicado", { description: msg });
           return;
         }
       }
+      setDuplicateInfo(null);
     }
 
     setSaving(true);
@@ -375,30 +381,6 @@ export function ProductFormDialog({
       if (imageFile) {
         imageUrl = await uploadImage(imageFile, name || effectiveReferencia, effectiveClassificacao, { haste: Number(templeSize) || 0, lente: Number(lensSize) || 0, ponte: Number(bridgeSize) || 0 });
       }
-
-      const subcatComputed = buildSubcategoria();
-
-      // Múltiplas cores: persistidas como lista separada por vírgula (compatível com cor única)
-      const corArmacaoValue = joinCores(coresArmacao);
-      const corAcessorioValue = joinCores(coresAcessorioSel);
-
-      const hash = generateProductHash({
-        referencia: referencia.trim(),
-        classificacao,
-        categoriaIdade,
-        genero,
-        estilo,
-        corArmacao: corArmacaoValue,
-        materialAro,
-        materialHaste,
-        lensSize: Number(lensSize) || 0,
-        alturaLente: Number(alturaLente) || 0,
-        bridgeSize: Number(bridgeSize) || 0,
-        templeSize: Number(templeSize) || 0,
-        tipoLente,
-        isAcessorio,
-        subcategoriaAcessorio: subcatComputed,
-      });
 
       const qty = Math.max(0, Number(quantidade) || 0);
 
@@ -506,7 +488,12 @@ export function ProductFormDialog({
       resetForm();
       onOpenChange(false);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao salvar produto");
+      const m = String(err?.message || "");
+      if (m.includes("idx_produtos_hash_filial")) {
+        toast.error("Produto possivelmente duplicado", { description: "Já existe um produto cadastrado com o mesmo nome, NCM e características. Verifique o produto existente." });
+      } else {
+        toast.error(m || "Erro ao salvar produto");
+      }
     } finally {
       setSaving(false);
     }
