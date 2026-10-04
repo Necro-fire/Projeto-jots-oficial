@@ -355,9 +355,6 @@ export function ProductFormDialog({
     const subcatComputed = buildSubcategoria();
     const corArmacaoValue = joinCores(coresArmacao);
     const corAcessorioValue = joinCores(coresAcessorioSel);
-    const tipoLenteForHash = classificacaoProduto === "Clip-on"
-      ? JSON.stringify(cliponLentes)
-      : classificacaoProduto === "Receituário" ? "" : tipoLente;
 
     const hash = generateProductHash({
       referencia: referencia.trim(),
