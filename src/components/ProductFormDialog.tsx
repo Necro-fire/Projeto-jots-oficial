@@ -488,7 +488,12 @@ export function ProductFormDialog({
       resetForm();
       onOpenChange(false);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao salvar produto");
+      const m = String(err?.message || "");
+      if (m.includes("idx_produtos_hash_filial")) {
+        toast.error("Produto possivelmente duplicado", { description: "Já existe um produto cadastrado com o mesmo nome, NCM e características. Verifique o produto existente." });
+      } else {
+        toast.error(m || "Erro ao salvar produto");
+      }
     } finally {
       setSaving(false);
     }
