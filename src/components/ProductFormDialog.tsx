@@ -376,6 +376,7 @@ export function ProductFormDialog({
       ncm,
       corAcessorio: corAcessorioValue,
       materialAcessorio,
+      tipoVenda: isAcessorio ? tipoVenda : "",
     });
 
     const filialsCheck = isEditing ? [filial] : (filial === "all" ? ["1", "2", "3"] : [filial]);
