@@ -344,6 +344,7 @@ export function ProductFormDialog({
   const handleSave = async () => {
     if (!classificacaoProduto) { toast.error("Selecione a classificação do produto"); return; }
     if (!isAcessorio && !referencia.trim()) { toast.error("Informe o código da peça"); return; }
+    if (isAcessorio && !name.trim()) { toast.error("Informe o nome do acessório"); return; }
     if (!isAcessorio && !classificacao) { toast.error("Selecione a classificação (C1-C10)"); return; }
     if (!price || price <= 0) { toast.error("Informe um preço válido"); return; }
     if (!filial) { toast.error("Selecione uma filial"); return; }
@@ -658,6 +659,18 @@ export function ProductFormDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+              {isAcessorio && (
+                <div>
+                  <Label htmlFor="nome-acessorio">Nome do Acessório *</Label>
+                  <Input
+                    id="nome-acessorio"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex: Cordão de silicone preto"
+                    maxLength={120}
+                  />
                 </div>
               )}
               <div>
