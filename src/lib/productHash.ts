@@ -22,10 +22,11 @@ export function generateProductHash(data: {
   ncm?: string;
   corAcessorio?: string;
   materialAcessorio?: string;
+  tipoVenda?: string;
 }): string {
   if (data.isAcessorio) {
     const n = (v?: string) => (v && v.trim() ? v.trim() : "NA");
-    return ["ACC", n(data.ncm), n(data.subcategoriaAcessorio), n(data.corAcessorio), n(data.materialAcessorio)]
+    return ["ACC", n(data.ncm), n(data.subcategoriaAcessorio), n(data.corAcessorio), n(data.materialAcessorio), n(data.tipoVenda)]
       .join("|").toUpperCase();
   }
   const ref = data.referencia || "NA";
