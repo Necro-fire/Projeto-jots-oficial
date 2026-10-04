@@ -263,10 +263,41 @@ export function ProductFormDialog({
     return parts.join(" > ");
   };
 
-  // Limpa o aviso de duplicidade quando o usuário altera os dados; a verificação completa ocorre ao salvar
+  // Acessórios: limpa o aviso ao alterar dados (verificação completa ao salvar)
   useEffect(() => {
-    setDuplicateInfo(null);
-  }, [referencia, classificacao, classificacaoProduto, categoriaIdade, genero, estilo, ncm, filial, coresArmacao, materialAro, materialHaste, lensSize, alturaLente, bridgeSize, templeSize, tipoLente, categoriaAcessorio, tipoAcessorio, variacaoAcessorio, coresAcessorioSel, materialAcessorio]);
+    if (isAcessorio) setDuplicateInfo(null);
+  }, [isAcessorio, ncm, filial, categoriaAcessorio, tipoAcessorio, variacaoAcessorio, coresAcessorioSel, materialAcessorio]);
+
+  // Óculos: verificação original ao alterar código/classificação (apenas novos produtos)
+  useEffect(() => {
+    if (isAcessorio) return;
+    if (isEditing || !referencia.trim() || !filial) {
+      setDuplicateInfo(null);
+      return;
+    }
+    const checkDuplicate = async () => {
+      const filials = filial === "all" ? ["1", "2", "3"] : [filial];
+      for (const fId of filials) {
+        if (classificacao) {
+          const { data: exactMatch } = await (supabase as any)
+            .from("produtos")
+            .select("id")
+            .eq("referencia", referencia.trim())
+            .eq("classificacao", classificacao)
+            .eq("filial_id", fId)
+            .eq("is_acessorio", false)
+            .maybeSingle();
+          if (exactMatch) {
+            setDuplicateInfo(`Este produto já está cadastrado no sistema. (Código "${referencia.trim()}" com classificação ${classificacao} na filial ${fId})`);
+            return;
+          }
+        }
+      }
+      setDuplicateInfo(null);
+    };
+    const timeout = setTimeout(checkDuplicate, 500);
+    return () => clearTimeout(timeout);
+  }, [referencia, classificacao, filial, isEditing, isAcessorio]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -330,7 +361,7 @@ export function ProductFormDialog({
 
     const hash = generateProductHash({
       referencia: referencia.trim(),
-      classificacao: effectiveClassificacao,
+      classificacao,
       categoriaIdade,
       genero,
       estilo,
@@ -341,22 +372,42 @@ export function ProductFormDialog({
       alturaLente: Number(alturaLente) || 0,
       bridgeSize: Number(bridgeSize) || 0,
       templeSize: Number(templeSize) || 0,
-      tipoLente: tipoLenteForHash,
+      tipoLente,
       isAcessorio,
       subcategoriaAcessorio: subcatComputed,
       ncm,
-      tipoProduto: classificacaoProduto,
       corAcessorio: corAcessorioValue,
       materialAcessorio,
     });
 
-    // Duplicidade por identidade composta (ignora o próprio produto em edição)
-    {
-      const filials = isEditing ? [filial] : (filial === "all" ? ["1", "2", "3"] : [filial]);
-      for (const fId of filials) {
+    const filialsCheck = isEditing ? [filial] : (filial === "all" ? ["1", "2", "3"] : [filial]);
+
+    if (!isAcessorio) {
+      // Óculos: regra original (código + classificação)
+      if (duplicateInfo && !isEditing) {
+        toast.error("Este produto já está cadastrado no sistema.");
+        return;
+      }
+      for (const fId of filialsCheck) {
+        const { data: existing } = await (supabase as any)
+          .from("produtos")
+          .select("id")
+          .eq("referencia", effectiveReferencia)
+          .eq("classificacao", effectiveClassificacao)
+          .eq("filial_id", fId)
+          .eq("is_acessorio", false)
+          .maybeSingle();
+        if (existing && (!isEditing || existing.id !== product?.id)) {
+          toast.error("Este produto já está cadastrado no sistema.");
+          return;
+        }
+      }
+    } else {
+      // Acessórios: duplicidade por identidade composta (NCM não é único; ignora o próprio produto em edição)
+      for (const fId of filialsCheck) {
         let q = (supabase as any)
           .from("produtos")
-          .select("id, code, referencia, category, categoria_idade, genero, ncm")
+          .select("id, code, referencia, subcategoria_acessorio, cor_acessorio, material_acessorio, ncm")
           .eq("hash_produto", hash)
           .eq("filial_id", fId)
           .limit(1);
@@ -364,9 +415,9 @@ export function ProductFormDialog({
         const { data: rows } = await q;
         const existing = rows?.[0];
         if (existing) {
-          const desc = [existing.code, existing.referencia, existing.category, existing.categoria_idade, existing.genero, existing.ncm && `NCM ${existing.ncm}`]
+          const desc = [existing.code, existing.subcategoria_acessorio, existing.cor_acessorio, existing.material_acessorio, existing.ncm && `NCM ${existing.ncm}`]
             .filter(Boolean).join(" — ");
-          const msg = `Produto possivelmente duplicado. Já existe um produto com o mesmo nome, NCM e características na filial ${fId}: ${desc}`;
+          const msg = `Produto possivelmente duplicado. Já existe um acessório com o mesmo NCM e características na filial ${fId}: ${desc}`;
           setDuplicateInfo(msg);
           toast.error("Produto possivelmente duplicado", { description: msg });
           return;
