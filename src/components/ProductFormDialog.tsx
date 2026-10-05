@@ -17,6 +17,7 @@ import type { DbProduct } from "@/hooks/useSupabaseData";
 import { generateProductCodes, findProductByHash, upsertEstoque } from "@/hooks/useSupabaseData";
 
 import { generateProductHash } from "@/lib/productHash";
+import { resolveProductModelName } from "@/lib/productModel";
 import { shouldHaveFooter, renderImageWithFooter, renderImageWithoutFooter } from "@/lib/productImageFooter";
 import {
   CLASSIFICACOES, CLASSIFICACOES_OPCOES, CLASSIFICACAO_PERSONALIZADO, CATEGORIAS_IDADE, GENEROS, ESTILOS, TODAS_CORES, CORES_SOLIDAS,
@@ -352,6 +353,11 @@ export function ProductFormDialog({
 
     const effectiveReferencia = isAcessorio ? ncm : referencia.trim();
     const effectiveClassificacao = isAcessorio ? "" : classificacao;
+    const effectiveModelName = resolveProductModelName({
+      isAcessorio,
+      model: name,
+      referencia: effectiveReferencia,
+    });
 
     const subcatComputed = buildSubcategoria();
     const corArmacaoValue = joinCores(coresArmacao);
@@ -429,7 +435,7 @@ export function ProductFormDialog({
     try {
       let imageUrl = isEditing ? (product?.image_url || "") : "";
       if (imageFile) {
-        imageUrl = await uploadImage(imageFile, name || effectiveReferencia, effectiveClassificacao, { haste: Number(templeSize) || 0, lente: Number(lensSize) || 0, ponte: Number(bridgeSize) || 0 });
+        imageUrl = await uploadImage(imageFile, effectiveModelName, effectiveClassificacao, { haste: Number(templeSize) || 0, lente: Number(lensSize) || 0, ponte: Number(bridgeSize) || 0 });
       }
 
       const qty = Math.max(0, Number(quantidade) || 0);
@@ -455,7 +461,7 @@ export function ProductFormDialog({
       const buildBaseData = (codes?: { code: string; barcode: string }, fId?: string) => ({
         ...(codes ? { code: codes.code, barcode: codes.barcode } : {}),
         referencia: effectiveReferencia,
-        model: effectiveReferencia,
+        model: effectiveModelName,
         classificacao: effectiveClassificacao,
         category: classificacaoProduto,
         retail_price: price,
