@@ -33,7 +33,7 @@ function parseBoletoMetaFromMethod(method: string): BoletoMetaInfo | null {
   };
 }
 
-function getBoletoInstallmentValues(installments: number, intervalDays: number, total: number): { values: number[]; finalTotal: number } {
+export function getBoletoInstallmentValues(installments: number, intervalDays: number, total: number): { values: number[]; finalTotal: number } {
   const JUROS_RATE = 0.06;
   const valorBase = total / installments;
   // 15d: interest from 3rd installment; 30d: interest from 2nd installment

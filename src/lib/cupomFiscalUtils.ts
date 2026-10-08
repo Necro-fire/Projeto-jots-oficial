@@ -1,8 +1,8 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { distribuicaoEmCentavos, normalizarCupomData, type CupomFiscalData } from "@/components/CupomFiscal";
-import { parsePaymentDisplay } from "@/lib/paymentUtils";
+import { distribuicaoEmCentavos, normalizarCupomData, type CupomFiscalData, type PagamentoCupom } from "@/components/CupomFiscal";
+import { parsePaymentDisplay, PAYMENT_LABELS, INTEREST_RATES, getBoletoInstallmentValues } from "@/lib/paymentUtils";
 
 function calcularTotaisCupom(subtotalLiquido: number, desconto: number, total: number) {
   return {
@@ -12,8 +12,55 @@ function calcularTotaisCupom(subtotalLiquido: number, desconto: number, total: n
   };
 }
 
+const toC = (v: number) => Math.round((Number(v) || 0) * 100);
+
 /**
- * Build CupomFiscalData from a completed sale ID by fetching all required data.
+ * Monta uma forma de pagamento a partir do valor FINAL registrado (sem recalcular o total).
+ * Parcelas e juros são derivados do próprio pagamento; a soma das parcelas é sempre igual ao valor registrado.
+ */
+function montarPagamento(formaRaw: string, valorFinal: number, baseConhecida?: number): PagamentoCupom {
+  const forma = PAYMENT_LABELS[formaRaw] || formaRaw || "Pagamento";
+  const lower = forma.toLowerCase();
+  const finalC = toC(valorFinal);
+
+  const boleto = forma.match(/boleto\s+(\d+)x\/(\d+)d/i);
+  if (boleto) {
+    const n = parseInt(boleto[1], 10);
+    const intervalo = parseInt(boleto[2], 10);
+    const firstInt = intervalo <= 15 ? 3 : 2;
+    const comJuros = Math.max(0, n - firstInt + 1);
+    const fator = (n - comJuros + comJuros * 1.06) / n;
+    const baseTotal = valorFinal / fator;
+    const { values } = getBoletoInstallmentValues(n, intervalo, baseTotal);
+    const cents = values.map(toC);
+    const diff = finalC - cents.reduce((a, b) => a + b, 0);
+    cents[cents.length - 1] += diff;
+    const baseC = baseConhecida !== undefined ? Math.min(finalC, toC(baseConhecida)) : Math.min(finalC, toC(baseTotal));
+    return {
+      forma, tipo: "BOLETO", valorBase: baseC / 100, acrescimo: (finalC - baseC) / 100, valorFinal: finalC / 100,
+      parcelas: cents.map((v, i) => ({ numero: i + 1, prazoDias: intervalo * (i + 1), valor: v / 100 })),
+    };
+  }
+
+  const isCredito = lower.includes("crédito") || lower.includes("credito") || (lower.includes("cartão") && !lower.includes("débito")) || lower.includes("cartao");
+  if (isCredito) {
+    const m = forma.match(/(\d+)x/);
+    const n = m ? parseInt(m[1], 10) : 1;
+    const rate = m && INTEREST_RATES[n] ? INTEREST_RATES[n] : 0;
+    const baseC = baseConhecida !== undefined ? Math.min(finalC, toC(baseConhecida)) : Math.min(finalC, Math.round(finalC / (1 + rate / 100)));
+    return {
+      forma, tipo: "CREDITO", valorBase: baseC / 100, acrescimo: (finalC - baseC) / 100, valorFinal: finalC / 100,
+      parcelas: distribuicaoEmCentavos(finalC, n).map((v, i) => ({ numero: i + 1, valor: v / 100 })),
+    };
+  }
+
+  const tipo = lower.includes("pix") ? "PIX" : lower.includes("dinheiro") ? "DINHEIRO" : lower.includes("débito") || lower.includes("debito") ? "DEBITO" : "OUTRO";
+  return { forma, tipo, valorBase: finalC / 100, acrescimo: 0, valorFinal: finalC / 100, parcelas: [{ numero: 1, valor: finalC / 100 }] };
+}
+
+/**
+ * Build CupomFiscalData from a completed sale ID.
+ * O total impresso é exatamente o total registrado na venda; cada forma de pagamento usa seu valor registrado no caixa.
  */
 export async function buildCupomFromVendaId(vendaId: string): Promise<CupomFiscalData> {
   const [vendaRes, itemsRes, empresaRes] = await Promise.all([
@@ -25,48 +72,48 @@ export async function buildCupomFromVendaId(vendaId: string): Promise<CupomFisca
   const venda = vendaRes.data;
   if (!venda) throw new Error("Venda não encontrada");
 
-  const items = (itemsRes.data || []).map((item: any) => ({
-    codigo: item.product_code || "",
-    descricao: item.product_model || "",
-    quantidade: item.quantity,
-    valorUnitario: Number(item.unit_price),
-    total: Number(item.total),
-  }));
+  const items = (itemsRes.data || [])
+    .filter((item: any) => item.status !== "cancelado")
+    .map((item: any) => ({
+      codigo: item.product_code || "",
+      descricao: item.product_model || "",
+      quantidade: item.quantity,
+      valorUnitario: Number(item.unit_price),
+      total: Number(item.total),
+    }));
 
   const empresa = empresaRes.data;
   const enderecoFull = empresa
-    ? [empresa.endereco, empresa.numero, empresa.bairro, empresa.cidade, empresa.estado]
-        .filter(Boolean)
-        .join(", ")
+    ? [empresa.endereco, empresa.numero, empresa.bairro, empresa.cidade, empresa.estado].filter(Boolean).join(", ")
     : undefined;
 
   const { data: movData } = await (supabase as any)
     .from("caixa_movimentacoes")
-    .select("valor, forma_pagamento, usuario_nome")
+    .select("valor, forma_pagamento, usuario_nome, created_at")
     .eq("venda_id", vendaId)
-    .eq("tipo", "venda");
+    .eq("tipo", "venda")
+    .order("created_at", { ascending: true });
 
   const operador = movData?.[0]?.usuario_nome || venda.seller_name || "";
-  const subtotal = items.reduce((s: number, i: any) => s + i.total, 0);
   const desconto = Number(venda.discount) || 0;
-  const totalMovimentacoes = (movData || []).reduce((s: number, mov: any) => s + (Number(mov.valor) || 0), 0);
-  const baseTotal = Number(venda.total) || 0;
-  const formasPagamento = venda.payment_method
-    ? venda.payment_method.split("/").map((m: string) => m.trim()).filter(Boolean)
-    : ["—"];
-  const total = formasPagamento.length > 1
-    ? totalMovimentacoes > 0 ? totalMovimentacoes : baseTotal
-    : venda.payment_method
-      ? parsePaymentDisplay(venda.payment_method, subtotal).finalTotal
-      : baseTotal;
-  const totais = calcularTotaisCupom(subtotal, desconto, total);
+  const totalC = toC(venda.total);
+  const movs = (movData || []) as any[];
 
-  const valoresPorForma = (movData || []).map((mov: any) => Number(mov.valor) || 0);
-  const formasPagamentoValores = valoresPorForma.length === formasPagamento.length
-    ? valoresPorForma
-    : (formasPagamento.length > 1 ? distribuicaoEmCentavos(Math.round(total * 100), formasPagamento.length).map((cents) => cents / 100) : [total]);
+  let pagamentos: PagamentoCupom[];
+  const itensC = items.reduce((s: number, i: any) => s + toC(i.total), 0);
+  if (movs.length > 1 && movs.reduce((s, m) => s + toC(m.valor), 0) === totalC) {
+    pagamentos = movs.map((m) => montarPagamento(m.forma_pagamento || venda.payment_method, Number(m.valor)));
+  } else {
+    // Pagamento único: o acréscimo é a diferença real entre o total registrado e os itens
+    const forma = movs.length === 1 ? (movs[0].forma_pagamento || venda.payment_method) : (venda.payment_method || "Pagamento");
+    pagamentos = [montarPagamento(forma, totalC / 100, itensC > 0 && itensC <= totalC ? itensC / 100 : totalC / 100)];
+  }
 
-  const normalized = normalizarCupomData({
+  const acrescimoC = pagamentos.reduce((s, p) => s + toC(p.acrescimo), 0);
+  const valorComDescontoC = totalC - acrescimoC;
+  const valorOriginalC = valorComDescontoC + toC(desconto);
+
+  return normalizarCupomData({
     empresa: {
       nome: empresa?.nome_fantasia || empresa?.razao_social || "Empresa",
       cnpj: empresa?.cnpj,
@@ -80,17 +127,14 @@ export async function buildCupomFromVendaId(vendaId: string): Promise<CupomFisca
       operador,
     },
     items,
-    subtotal: totais.valorOriginal,
-    valorOriginal: totais.valorOriginal,
+    subtotal: valorOriginalC / 100,
+    valorOriginal: valorOriginalC / 100,
     desconto,
-    valorComDesconto: totais.valorComDesconto,
-    acrescimo: totais.acrescimo,
-    total,
-    formasPagamento,
-    formasPagamentoValores,
+    valorComDesconto: valorComDescontoC / 100,
+    acrescimo: acrescimoC / 100,
+    total: totalC / 100,
+    pagamentos,
   });
-
-  return normalized;
 }
 
 /**
