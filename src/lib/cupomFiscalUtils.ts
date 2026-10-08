@@ -1,13 +1,21 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import type { CupomFiscalData } from "@/components/CupomFiscal";
+import { distribuicaoEmCentavos, normalizarCupomData, type CupomFiscalData } from "@/components/CupomFiscal";
+import { parsePaymentDisplay } from "@/lib/paymentUtils";
+
+function calcularTotaisCupom(subtotalLiquido: number, desconto: number, total: number) {
+  return {
+    valorOriginal: subtotalLiquido + desconto,
+    valorComDesconto: subtotalLiquido,
+    acrescimo: total - subtotalLiquido,
+  };
+}
 
 /**
  * Build CupomFiscalData from a completed sale ID by fetching all required data.
  */
 export async function buildCupomFromVendaId(vendaId: string): Promise<CupomFiscalData> {
-  // Fetch venda, items, and empresa in parallel
   const [vendaRes, itemsRes, empresaRes] = await Promise.all([
     (supabase as any).from("vendas").select("*").eq("id", vendaId).single(),
     (supabase as any).from("venda_items").select("*").eq("venda_id", vendaId),
@@ -32,25 +40,33 @@ export async function buildCupomFromVendaId(vendaId: string): Promise<CupomFisca
         .join(", ")
     : undefined;
 
-  // Try to get seller name from caixa_movimentacoes
   const { data: movData } = await (supabase as any)
     .from("caixa_movimentacoes")
-    .select("usuario_nome")
+    .select("valor, forma_pagamento, usuario_nome")
     .eq("venda_id", vendaId)
-    .eq("tipo", "venda")
-    .limit(1)
-    .maybeSingle();
+    .eq("tipo", "venda");
 
-  const operador = movData?.usuario_nome || venda.seller_name || "";
-
+  const operador = movData?.[0]?.usuario_nome || venda.seller_name || "";
   const subtotal = items.reduce((s: number, i: any) => s + i.total, 0);
-
-  // Parse payment methods
+  const desconto = Number(venda.discount) || 0;
+  const totalMovimentacoes = (movData || []).reduce((s: number, mov: any) => s + (Number(mov.valor) || 0), 0);
+  const baseTotal = Number(venda.total) || 0;
   const formasPagamento = venda.payment_method
-    ? venda.payment_method.split("/").map((m: string) => m.trim())
+    ? venda.payment_method.split("/").map((m: string) => m.trim()).filter(Boolean)
     : ["—"];
+  const total = formasPagamento.length > 1
+    ? totalMovimentacoes > 0 ? totalMovimentacoes : baseTotal
+    : venda.payment_method
+      ? parsePaymentDisplay(venda.payment_method, subtotal).finalTotal
+      : baseTotal;
+  const totais = calcularTotaisCupom(subtotal, desconto, total);
 
-  return {
+  const valoresPorForma = (movData || []).map((mov: any) => Number(mov.valor) || 0);
+  const formasPagamentoValores = valoresPorForma.length === formasPagamento.length
+    ? valoresPorForma
+    : (formasPagamento.length > 1 ? distribuicaoEmCentavos(Math.round(total * 100), formasPagamento.length).map((cents) => cents / 100) : [total]);
+
+  const normalized = normalizarCupomData({
     empresa: {
       nome: empresa?.nome_fantasia || empresa?.razao_social || "Empresa",
       cnpj: empresa?.cnpj,
@@ -64,11 +80,17 @@ export async function buildCupomFromVendaId(vendaId: string): Promise<CupomFisca
       operador,
     },
     items,
-    subtotal,
-    desconto: Number(venda.discount) || 0,
-    total: Number(venda.total),
+    subtotal: totais.valorOriginal,
+    valorOriginal: totais.valorOriginal,
+    desconto,
+    valorComDesconto: totais.valorComDesconto,
+    acrescimo: totais.acrescimo,
+    total,
     formasPagamento,
-  };
+    formasPagamentoValores,
+  });
+
+  return normalized;
 }
 
 /**
@@ -86,7 +108,17 @@ export function buildCupomFromPdvData(params: {
   paymentMethod: string;
   empresa?: { nome: string; cnpj?: string; ie?: string; endereco?: string };
 }): CupomFiscalData {
-  return {
+  const formasPagamento = params.paymentMethod.split("/").map((m) => m.trim()).filter(Boolean);
+  const totalBase = Number(params.total) || 0;
+  const totalComJuros = formasPagamento.length === 1
+    ? parsePaymentDisplay(params.paymentMethod, totalBase).finalTotal
+    : totalBase;
+  const totais = calcularTotaisCupom(params.subtotal, params.desconto, totalComJuros);
+  const formasPagamentoValores = formasPagamento.length > 1
+    ? distribuicaoEmCentavos(Math.round(totalComJuros * 100), formasPagamento.length).map((cents) => cents / 100)
+    : [totalComJuros];
+
+  return normalizarCupomData({
     empresa: {
       nome: params.empresa?.nome || "Empresa",
       cnpj: params.empresa?.cnpj,
@@ -106,9 +138,13 @@ export function buildCupomFromPdvData(params: {
       valorUnitario: i.unitPrice,
       total: i.total,
     })),
-    subtotal: params.subtotal,
+    subtotal: totais.valorOriginal,
+    valorOriginal: totais.valorOriginal,
     desconto: params.desconto,
-    total: params.total,
-    formasPagamento: params.paymentMethod.split("/").map((m) => m.trim()),
-  };
+    valorComDesconto: totais.valorComDesconto,
+    acrescimo: totais.acrescimo,
+    total: totalComJuros,
+    formasPagamento,
+    formasPagamentoValores,
+  });
 }

@@ -425,7 +425,7 @@ export const ACESSORIOS_CATEGORIAS: AccessoryCategory[] = [
   {
     nome: "Cordão",
     tiposVenda: ["Unidade", "Dúzia"],
-    tipos: ["Infantil", "Adulto", "Esportivo", "Tecido", "Nylon", "Miçanga", "Metal"].map(n =>
+    tipos: ["Infantil", "Adulto", "Esportivo", "Tecido", "Nylon", "Miçanga", "Metal", "Silicone"].map(n =>
       simpleTipoWithCores(n, [...CORES_CORDAO])
     ),
   },

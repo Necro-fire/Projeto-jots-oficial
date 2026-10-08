@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveProductModelName } from "./productModel";
+import { normalizeProductModelName, resolveProductModelName } from "./productModel";
 
 describe("resolveProductModelName", () => {
   it("prefers a custom accessory name over the NCM", () => {
@@ -17,5 +17,9 @@ describe("resolveProductModelName", () => {
       model: "",
       referencia: "90049090",
     })).toBe("90049090");
+  });
+
+  it("collapses a product name duplicated exactly twice", () => {
+    expect(normalizeProductModelName("029-516MBM029-516MBM")).toBe("029-516MBM");
   });
 });

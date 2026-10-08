@@ -25,6 +25,7 @@ import { DiscountRuleDialog } from "@/components/pdv/DiscountRuleDialog";
 import { ProductImageDialog } from "@/components/pdv/ProductImageDialog";
 import { CupomFiscalDialog } from "@/components/CupomFiscalDialog";
 import { buildCupomFromVendaId } from "@/lib/cupomFiscalUtils";
+import { normalizeProductModelName } from "@/lib/productModel";
 import type { CupomFiscalData } from "@/components/CupomFiscal";
 import { matchesProductSearch, findByExactBarcode } from "@/lib/productSearch";
 import {
@@ -364,7 +365,7 @@ export default function PDV() {
       const items = Array.from(grouped.values()).map(({ product, count, totalPrice }) => ({
         produto_id: product.id,
         product_code: product.referencia,
-        product_model: product.model || product.referencia,
+        product_model: normalizeProductModelName(product.model) || product.referencia,
         quantity: count,
         unit_price: Math.round((totalPrice / count) * 100) / 100,
         custo_unitario: (product as any).custo ?? 0,
@@ -430,7 +431,7 @@ export default function PDV() {
           })
         : undefined;
 
-      const result = await createVenda(items, selectedClient, client?.store_name || "", finalMethod, saleOrigin, filialId, saleDiscount, user?.id, profile?.nome || user?.email || "", splits);
+      const result = await createVenda(items, selectedClient, client?.store_name || "", finalMethod, saleOrigin, filialId, saleDiscount, user?.id, profile?.nome || user?.email || "", splits, saleTotal);
 
       toast.success(`Venda finalizada! ${result.sale_code || '#' + result.number} — Total: R$ ${saleTotal.toFixed(2)}`);
 

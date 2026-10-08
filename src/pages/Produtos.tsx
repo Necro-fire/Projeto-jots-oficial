@@ -19,6 +19,7 @@ import { ProductFilters, useProductFilters, applyProductFilters, getStockLevel }
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { normalizeProductModelName } from "@/lib/productModel";
 
 export default function Produtos() {
   const [showForm, setShowForm] = useState(false);
@@ -250,11 +251,12 @@ export default function Produtos() {
         {filtered.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {filtered.map(product => {
+              const productName = normalizeProductModelName(product.model) || product.referencia;
               return (
                 <div key={product.id} className="rounded-lg shadow-card bg-card p-3 group hover:shadow-md transition-shadow relative">
                     <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {product.image_url && (
-                        <Button variant="secondary" size="icon" className="h-7 w-7" title="Visualizar" onClick={() => setZoomImage({ url: product.image_url, name: product.model || product.referencia, category: product.category, classificacao: (product as any).classificacao, haste: product.temple_size, lente: product.lens_size, ponte: product.bridge_size })}>
+                        <Button variant="secondary" size="icon" className="h-7 w-7" title="Visualizar" onClick={() => setZoomImage({ url: product.image_url, name: productName, category: product.category, classificacao: (product as any).classificacao, haste: product.temple_size, lente: product.lens_size, ponte: product.bridge_size })}>
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -272,15 +274,15 @@ export default function Produtos() {
 
                   <div className="aspect-[3/2] rounded-md bg-secondary flex items-center justify-center overflow-hidden">
                     {product.image_url ? (
-                      <img src={product.image_url} alt={product.model || product.referencia} className="w-full h-full object-cover" />
+                      <img src={product.image_url} alt={productName} className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-muted-foreground/30 text-title font-bold">{product.model || product.referencia}</span>
+                      <span className="text-muted-foreground/30 text-title font-bold">{productName}</span>
                     )}
                   </div>
                   <div className="mt-3 flex justify-between items-start gap-2">
                     <div className="min-w-0">
                       <h3 className="text-ui font-semibold truncate">
-                        {product.model || product.referencia}
+                        {productName}
                         {(product as any).classificacao && <span className="ml-1 text-primary">({(product as any).classificacao})</span>}
                       </h3>
                       <p className="text-[10px] font-mono text-muted-foreground/60">{product.referencia}</p>

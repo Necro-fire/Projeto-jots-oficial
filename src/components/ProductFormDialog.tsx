@@ -17,7 +17,7 @@ import type { DbProduct } from "@/hooks/useSupabaseData";
 import { generateProductCodes, findProductByHash, upsertEstoque } from "@/hooks/useSupabaseData";
 
 import { generateProductHash } from "@/lib/productHash";
-import { resolveProductModelName } from "@/lib/productModel";
+import { normalizeProductModelName, resolveProductModelName } from "@/lib/productModel";
 import { shouldHaveFooter, renderImageWithFooter, renderImageWithoutFooter } from "@/lib/productImageFooter";
 import {
   CLASSIFICACOES, CLASSIFICACOES_OPCOES, CLASSIFICACAO_PERSONALIZADO, CATEGORIAS_IDADE, GENEROS, ESTILOS, TODAS_CORES, CORES_SOLIDAS,
@@ -156,7 +156,7 @@ export function ProductFormDialog({
         } catch { /* not JSON, ignore */ }
       }
       setReferencia(product.referencia || "");
-      setName(product.model);
+      setName(normalizeProductModelName(product.model));
       setPrice(Number(product.retail_price) || 0);
       setCusto(Number(product.custo) || 0);
       setDetail(product.description || "");

@@ -271,7 +271,8 @@ export async function createVenda(
   discount: number = 0,
   userId?: string,
   userName?: string,
-  paymentSplits?: PaymentSplit[]
+  paymentSplits?: PaymentSplit[],
+  finalTotalOverride?: number
 ) {
   // Verify caixa is open
   const { data: caixaAberto, error: caixaCheckError } = await (supabase as any)
@@ -284,7 +285,10 @@ export async function createVenda(
   if (caixaCheckError) throw new Error(caixaCheckError.message);
   if (!caixaAberto) throw new Error("O caixa precisa estar aberto para realizar vendas.");
 
-  const total = items.reduce((acc, i) => acc + i.unit_price * i.quantity, 0) - discount;
+  const baseTotal = items.reduce((acc, i) => acc + i.unit_price * i.quantity, 0);
+  const total = Number.isFinite(finalTotalOverride) && finalTotalOverride !== undefined
+    ? finalTotalOverride
+    : baseTotal;
 
   // Force reconciliation before validating stock
   for (const item of items) {
