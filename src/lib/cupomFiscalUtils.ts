@@ -18,7 +18,7 @@ const toC = (v: number) => Math.round((Number(v) || 0) * 100);
  * Monta uma forma de pagamento a partir do valor FINAL registrado (sem recalcular o total).
  * Parcelas e juros são derivados do próprio pagamento; a soma das parcelas é sempre igual ao valor registrado.
  */
-function montarPagamento(formaRaw: string, valorFinal: number): PagamentoCupom {
+function montarPagamento(formaRaw: string, valorFinal: number, baseConhecida?: number): PagamentoCupom {
   const forma = PAYMENT_LABELS[formaRaw] || formaRaw || "Pagamento";
   const lower = forma.toLowerCase();
   const finalC = toC(valorFinal);
@@ -35,7 +35,7 @@ function montarPagamento(formaRaw: string, valorFinal: number): PagamentoCupom {
     const cents = values.map(toC);
     const diff = finalC - cents.reduce((a, b) => a + b, 0);
     cents[cents.length - 1] += diff;
-    const baseC = Math.min(finalC, toC(baseTotal));
+    const baseC = baseConhecida !== undefined ? Math.min(finalC, toC(baseConhecida)) : Math.min(finalC, toC(baseTotal));
     return {
       forma, tipo: "BOLETO", valorBase: baseC / 100, acrescimo: (finalC - baseC) / 100, valorFinal: finalC / 100,
       parcelas: cents.map((v, i) => ({ numero: i + 1, prazoDias: intervalo * (i + 1), valor: v / 100 })),
@@ -47,7 +47,7 @@ function montarPagamento(formaRaw: string, valorFinal: number): PagamentoCupom {
     const m = forma.match(/(\d+)x/);
     const n = m ? parseInt(m[1], 10) : 1;
     const rate = m && INTEREST_RATES[n] ? INTEREST_RATES[n] : 0;
-    const baseC = Math.min(finalC, Math.round(finalC / (1 + rate / 100)));
+    const baseC = baseConhecida !== undefined ? Math.min(finalC, toC(baseConhecida)) : Math.min(finalC, Math.round(finalC / (1 + rate / 100)));
     return {
       forma, tipo: "CREDITO", valorBase: baseC / 100, acrescimo: (finalC - baseC) / 100, valorFinal: finalC / 100,
       parcelas: distribuicaoEmCentavos(finalC, n).map((v, i) => ({ numero: i + 1, valor: v / 100 })),
@@ -100,10 +100,13 @@ export async function buildCupomFromVendaId(vendaId: string): Promise<CupomFisca
   const movs = (movData || []) as any[];
 
   let pagamentos: PagamentoCupom[];
-  if (movs.length > 0 && movs.reduce((s, m) => s + toC(m.valor), 0) === totalC) {
+  const itensC = items.reduce((s: number, i: any) => s + toC(i.total), 0);
+  if (movs.length > 1 && movs.reduce((s, m) => s + toC(m.valor), 0) === totalC) {
     pagamentos = movs.map((m) => montarPagamento(m.forma_pagamento || venda.payment_method, Number(m.valor)));
   } else {
-    pagamentos = [montarPagamento(venda.payment_method || "Pagamento", totalC / 100)];
+    // Pagamento único: o acréscimo é a diferença real entre o total registrado e os itens
+    const forma = movs.length === 1 ? (movs[0].forma_pagamento || venda.payment_method) : (venda.payment_method || "Pagamento");
+    pagamentos = [montarPagamento(forma, totalC / 100, itensC > 0 && itensC <= totalC ? itensC / 100 : totalC / 100)];
   }
 
   const acrescimoC = pagamentos.reduce((s, p) => s + toC(p.acrescimo), 0);
