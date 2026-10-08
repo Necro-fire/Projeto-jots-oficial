@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cancelarVenda } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { parsePaymentDisplay, parseSplitPaymentDisplay, isSplitPayment, parseSplitMethods, formatCurrency, type BoletoMetaInfo } from "@/lib/paymentUtils";
+import { distributeAmountInCents, parsePaymentDisplay, parseSplitPaymentDisplay, isSplitPayment, parseSplitMethods, formatCurrency, type BoletoMetaInfo } from "@/lib/paymentUtils";
 import type { DbVenda, DbVendaItem } from "@/hooks/useSupabaseData";
 
 interface VendaDetailDialogProps {
@@ -41,6 +41,10 @@ function getPaymentIcon(method: string) {
     if (key.includes(k)) return icon;
   }
   return <Banknote className="h-4 w-4" />;
+}
+
+function formatInstallmentValues(values: number[]): string {
+  return values.map((value, index) => `Parcela ${index + 1}/${values.length}: ${formatCurrency(value)}`).join(" · ");
 }
 
 interface VendaItemWithStatus extends DbVendaItem {
@@ -245,57 +249,9 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
             </div>
             <div>
               <p className="text-muted-foreground text-xs">Valor</p>
-              {(() => {
-                // Use stored boleto data as source of truth
-                if (boletos.length > 0 && !isCancelled) {
-                  const boletoTotal = boletos.reduce((s, b) => s + Number(b.valor_parcela), 0);
-                  // Base = first parcela (no interest) × total parcelas
-                  const firstParcela = boletos.find((b: any) => b.parcela_numero === 1);
-                  const basePerParcela = firstParcela ? Number(firstParcela.valor_parcela) : 0;
-                  const totalParcelas = firstParcela ? Number(firstParcela.total_parcelas) : boletos.length;
-                  const boletoBase = basePerParcela * totalParcelas;
-                  // For split payments, non-boleto portion + boleto base = total without interest
-                  const nonBoletoTotal = paymentSplits.length > 1
-                    ? paymentSplits.filter(s => !s.method.toLowerCase().includes("boleto")).reduce((sum, s) => sum + s.amount, 0)
-                    : 0;
-                  const baseAmount = paymentSplits.length > 1 ? nonBoletoTotal + boletoBase : boletoBase;
-                  const finalAmount = paymentSplits.length > 1 ? nonBoletoTotal + boletoTotal : boletoTotal;
-                  const hasJuros = Math.abs(finalAmount - baseAmount) > 0.01;
-                  if (hasJuros) {
-                    return (
-                      <div>
-                        <p className="font-semibold text-base tabular-nums text-primary">
-                          {formatCurrency(finalAmount)}
-                          <span className="text-xs font-normal text-muted-foreground ml-1">c/ juros</span>
-                        </p>
-                        <p className="text-xs tabular-nums text-muted-foreground line-through">
-                          {formatCurrency(baseAmount)}
-                        </p>
-                      </div>
-                    );
-                  }
-                }
-
-                const info = parsePaymentDisplay(venda.payment_method, Number(venda.total), boletoMeta);
-                if (info.hasInterest && !isCancelled) {
-                  return (
-                    <div>
-                      <p className="font-semibold text-base tabular-nums text-primary">
-                        {formatCurrency(info.finalTotal)}
-                        <span className="text-xs font-normal text-muted-foreground ml-1">c/ juros</span>
-                      </p>
-                      <p className="text-xs tabular-nums text-muted-foreground line-through">
-                        {formatCurrency(info.originalTotal)}
-                      </p>
-                    </div>
-                  );
-                }
-                return (
-                  <p className={`font-semibold text-base tabular-nums ${isCancelled ? "line-through text-muted-foreground" : "text-primary"}`}>
-                    {formatCurrency(Number(venda.total))}
-                  </p>
-                );
-              })()}
+              <p className={`font-semibold text-base tabular-nums ${isCancelled ? "line-through text-muted-foreground" : "text-primary"}`}>
+                {formatCurrency(Number(venda.total))}
+              </p>
             </div>
           </div>
 
@@ -357,13 +313,6 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
 
                       // For boleto: use stored boleto data as single source of truth
                       if (hasBoletoData) {
-                        const boletoTotal = boletos.reduce((s, b) => s + Number(b.valor_parcela), 0);
-                        // Base amount = first parcela value (never has interest) × total parcelas
-                        const firstParcela = boletos.find((b: any) => b.parcela_numero === 1);
-                        const basePerParcela = firstParcela ? Number(firstParcela.valor_parcela) : 0;
-                        const totalParcelas = firstParcela ? Number(firstParcela.total_parcelas) : boletos.length;
-                        const baseAmount = basePerParcela * totalParcelas;
-                        const hasJuros = Math.abs(boletoTotal - baseAmount) > 0.01;
                         return (
                           <div key={i} className="bg-secondary/50 rounded px-3 py-2">
                             <div className="flex items-center justify-between">
@@ -372,12 +321,10 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                                 <span className="text-sm font-medium">{split.method}</span>
                               </div>
                               <span className="text-sm font-semibold tabular-nums text-primary">
-                                {formatCurrency(hasJuros ? boletoTotal : baseAmount)}
+                                {formatCurrency(split.amount)}
                               </span>
                             </div>
                             <div className="mt-1 text-xs text-muted-foreground space-y-0.5 pl-6">
-                              <p>Valor sem juros: {formatCurrency(baseAmount)}</p>
-                              {hasJuros && <p>Juros: {boletos[0]?.intervalo_dias <= 15 ? '3' : '6'}%</p>}
                               {boletos.map((b) => (
                                 <p key={b.id}>Parcela {b.parcela_numero}: R$ {Number(b.valor_parcela).toFixed(2)}</p>
                               ))}
@@ -386,7 +333,10 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                         );
                       }
 
-                      const info = parseSplitPaymentDisplay(split.method, split.amount, venda.payment_method, boletoMeta);
+                      const info = parseSplitPaymentDisplay(split.method, 0, venda.payment_method, boletoMeta);
+                      const installmentValues = info.installments
+                        ? distributeAmountInCents(split.amount, info.installments)
+                        : [];
                       return (
                         <div key={i} className="bg-secondary/50 rounded px-3 py-2">
                           <div className="flex items-center justify-between">
@@ -395,17 +345,13 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                               <span className="text-sm font-medium">{split.method}</span>
                             </div>
                             <span className="text-sm font-semibold tabular-nums text-primary">
-                              {info.hasInterest ? formatCurrency(info.finalTotal) : formatCurrency(split.amount)}
+                              {formatCurrency(split.amount)}
                             </span>
                           </div>
                           {info.hasInterest && info.installments ? (
                             <div className="mt-1 text-xs text-muted-foreground space-y-0.5 pl-6">
-                              <p>Valor sem juros: {formatCurrency(info.originalTotal)}</p>
                               <p>{info.installments}x com {info.rate}% de juros</p>
-                              <p>Valor final: {formatCurrency(info.finalTotal)}</p>
-                              {info.installmentValue && (
-                                <p>Parcelas: {info.installments}x de {formatCurrency(info.installmentValue)}</p>
-                              )}
+                              <p>{formatInstallmentValues(installmentValues)}</p>
                             </div>
                           ) : (
                             <p className="mt-0.5 text-xs text-muted-foreground pl-6">Sem juros</p>
@@ -417,7 +363,7 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                     <div className="flex items-center justify-between px-3 pt-1 border-t border-border/50">
                       <span className="text-xs text-muted-foreground">Total</span>
                       <span className="text-sm font-bold tabular-nums text-primary">
-                        {formatCurrency(paymentSplits.reduce((sum, s) => sum + s.amount, 0))}
+                        {formatCurrency(Number(venda.total))}
                       </span>
                     </div>
                   </div>
@@ -431,12 +377,6 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                 const hasBoletoData = isBoleto && boletos.length > 0;
 
                 if (hasBoletoData) {
-                  const boletoTotal = boletos.reduce((s, b) => s + Number(b.valor_parcela), 0);
-                  const firstParcela = boletos.find((b: any) => b.parcela_numero === 1);
-                  const basePerParcela = firstParcela ? Number(firstParcela.valor_parcela) : 0;
-                  const totalParcelas = firstParcela ? Number(firstParcela.total_parcelas) : boletos.length;
-                  const baseAmount = basePerParcela * totalParcelas;
-                  const hasJuros = Math.abs(boletoTotal - baseAmount) > 0.01;
                   return (
                     <div className="bg-secondary/50 rounded px-3 py-2">
                       <div className="flex items-center gap-2 mb-1">
@@ -444,20 +384,19 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                         <Badge variant="outline">{split.method}</Badge>
                       </div>
                       <div className="text-xs text-muted-foreground space-y-0.5 pl-6">
-                        <p>Valor sem juros: {formatCurrency(baseAmount)}</p>
-                        {hasJuros && <p>Juros: {boletos[0]?.intervalo_dias <= 15 ? '3' : '6'}%</p>}
+                        <p>Valor registrado: {formatCurrency(Number(venda.total))}</p>
                         {boletos.map((b) => (
                           <p key={b.id}>Parcela {b.parcela_numero}: R$ {Number(b.valor_parcela).toFixed(2)}</p>
                         ))}
-                        {hasJuros && (
-                          <p>Total c/ juros: <span className="font-medium text-primary">{formatCurrency(boletoTotal)}</span></p>
-                        )}
                       </div>
                     </div>
                   );
                 }
 
-                const info = parsePaymentDisplay(split.method, split.amount, boletoMeta);
+                const info = parsePaymentDisplay(split.method, 0, boletoMeta);
+                const installmentValues = info.installments
+                  ? distributeAmountInCents(Number(venda.total), info.installments)
+                  : [];
                 return (
                   <div className="bg-secondary/50 rounded px-3 py-2">
                     <div className="flex items-center gap-2 mb-1">
@@ -466,16 +405,13 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                     </div>
                     {info.hasInterest && info.installments ? (
                       <div className="text-xs text-muted-foreground space-y-0.5 pl-6">
-                        <p>Valor sem juros: {formatCurrency(info.originalTotal)}</p>
                         <p>{info.installments}x com {info.rate}% de juros</p>
-                        <p>Valor final: <span className="font-medium text-primary">{formatCurrency(info.finalTotal)}</span></p>
-                        {info.installmentValue && (
-                          <p>Parcelas: {info.installments}x de {formatCurrency(info.installmentValue)}</p>
-                        )}
+                        <p>Valor registrado: {formatCurrency(Number(venda.total))}</p>
+                        <p>{formatInstallmentValues(installmentValues)}</p>
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground pl-6">
-                        Valor: <span className="font-medium text-foreground">{formatCurrency(split.amount)}</span> (sem juros)
+                        Valor: <span className="font-medium text-foreground">{formatCurrency(Number(venda.total))}</span>
                       </p>
                     )}
                   </div>
@@ -485,9 +421,6 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
               // Fallback: no caixa data, use payment_method string
               const isBoletoFallback = venda.payment_method.toLowerCase().includes("boleto");
               if (isBoletoFallback && boletos.length > 0) {
-                const boletoTotal = boletos.reduce((s, b) => s + Number(b.valor_parcela), 0);
-                const baseAmount = Number(venda.total);
-                const hasJuros = Math.abs(boletoTotal - baseAmount) > 0.01;
                 return (
                   <div className="bg-secondary/50 rounded px-3 py-2">
                     <div className="flex items-center gap-2 mb-1">
@@ -495,20 +428,19 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                       <Badge variant="outline">{venda.payment_method}</Badge>
                     </div>
                     <div className="text-xs text-muted-foreground space-y-0.5 pl-6">
-                      <p>Valor sem juros: {formatCurrency(baseAmount)}</p>
-                      {hasJuros && <p>Juros: {boletos[0]?.intervalo_dias <= 15 ? '3' : '6'}%</p>}
+                      <p>Valor registrado: {formatCurrency(Number(venda.total))}</p>
                       {boletos.map((b) => (
                         <p key={b.id}>Parcela {b.parcela_numero}: R$ {Number(b.valor_parcela).toFixed(2)}</p>
                       ))}
-                      {hasJuros && (
-                        <p>Total c/ juros: <span className="font-medium text-primary">{formatCurrency(boletoTotal)}</span></p>
-                      )}
                     </div>
                   </div>
                 );
               }
 
-              const info = parsePaymentDisplay(venda.payment_method, Number(venda.total), boletoMeta);
+              const info = parsePaymentDisplay(venda.payment_method, 0, boletoMeta);
+              const installmentValues = info.installments
+                ? distributeAmountInCents(Number(venda.total), info.installments)
+                : [];
               return (
                 <div className="bg-secondary/50 rounded px-3 py-2">
                   <div className="flex items-center gap-2 mb-1">
@@ -517,16 +449,13 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                   </div>
                   {info.hasInterest && info.installments ? (
                     <div className="text-xs text-muted-foreground space-y-0.5 pl-6">
-                      <p>Valor sem juros: {formatCurrency(info.originalTotal)}</p>
                       <p>{info.installments}x com {info.rate}% de juros</p>
-                      <p>Valor final: <span className="font-medium text-primary">{formatCurrency(info.finalTotal)}</span></p>
-                      {info.installmentValue && (
-                        <p>Parcelas: {info.installments}x de {formatCurrency(info.installmentValue)}</p>
-                      )}
+                      <p>Valor registrado: {formatCurrency(Number(venda.total))}</p>
+                      <p>{formatInstallmentValues(installmentValues)}</p>
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground pl-6">
-                      Valor: <span className="font-medium text-foreground">{formatCurrency(Number(venda.total))}</span> (sem juros)
+                      Valor: <span className="font-medium text-foreground">{formatCurrency(Number(venda.total))}</span>
                     </p>
                   )}
                 </div>

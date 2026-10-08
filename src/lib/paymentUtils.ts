@@ -24,6 +24,20 @@ export interface BoletoMetaInfo {
   intervalDays: number;
 }
 
+export function distributeAmountInCents(total: number, installments: number): number[] {
+  if (!Number.isInteger(installments) || installments <= 0) return [];
+
+  const totalCents = Math.round((Number.isFinite(total) ? total : 0) * 100);
+  const sign = totalCents < 0 ? -1 : 1;
+  const absoluteCents = Math.abs(totalCents);
+  const baseCents = Math.floor(absoluteCents / installments);
+  const remainder = absoluteCents % installments;
+
+  return Array.from({ length: installments }, (_, index) =>
+    sign * (baseCents + (index < remainder ? 1 : 0)) / 100
+  );
+}
+
 function parseBoletoMetaFromMethod(method: string): BoletoMetaInfo | null {
   const match = method.match(/Boleto\s+(\d+)x\/(\d+)d/i);
   if (!match) return null;

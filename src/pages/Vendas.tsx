@@ -16,7 +16,7 @@ import { useVendas, type DbVenda } from "@/hooks/useSupabaseData";
 import { useNotasFiscais } from "@/hooks/useNotasFiscais";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { parsePaymentDisplay, parseSplitPaymentDisplay, formatCurrency, type BoletoMetaInfo } from "@/lib/paymentUtils";
+import { distributeAmountInCents, parsePaymentDisplay, parseSplitPaymentDisplay, formatCurrency, type BoletoMetaInfo } from "@/lib/paymentUtils";
 import { buildCupomFromVendaId } from "@/lib/cupomFiscalUtils";
 import type { CupomFiscalData } from "@/components/CupomFiscal";
 
@@ -26,6 +26,17 @@ function getPaymentIcon(method: string) {
   if (key.includes("boleto")) return <FileText className="h-3.5 w-3.5" />;
   if (key.includes("cart") || key.includes("debit") || key.includes("credit") || key.includes("débito") || key.includes("crédito")) return <CreditCard className="h-3.5 w-3.5" />;
   return <Banknote className="h-3.5 w-3.5" />;
+}
+
+function formatInstallmentValues(values: number[]): string {
+  return values.map((value, index) => `${index + 1}/${values.length}: ${formatCurrency(value)}`).join(" · ");
+}
+
+function formatStoredInstallments(values: { number: number; amount: number }[]): string {
+  return [...values]
+    .sort((a, b) => a.number - b.number)
+    .map((installment) => `Parcela ${installment.number}: ${formatCurrency(installment.amount)}`)
+    .join(" · ");
 }
 
 export default function Vendas() {
@@ -44,6 +55,7 @@ export default function Vendas() {
   // Fetch all payment splits (caixa_movimentacoes) keyed by venda_id
   const [splitsByVenda, setSplitsByVenda] = useState<Record<string, { method: string; amount: number }[]>>({});
   const [boletoMetaByVenda, setBoletoMetaByVenda] = useState<Record<string, BoletoMetaInfo>>({});
+  const [boletoInstallmentsByVenda, setBoletoInstallmentsByVenda] = useState<Record<string, { number: number; amount: number }[]>>({});
 
   useEffect(() => {
     if (sales.length === 0) return;
@@ -55,7 +67,7 @@ export default function Vendas() {
         .eq("tipo", "venda"),
       (supabase as any)
         .from("boleto_alertas")
-        .select("venda_id, total_parcelas, intervalo_dias"),
+        .select("venda_id, total_parcelas, intervalo_dias, parcela_numero, valor_parcela"),
     ]).then(([splitsRes, boletoRes]: [{ data: any[] | null }, { data: any[] | null }]) => {
       const splitMap: Record<string, { method: string; amount: number }[]> = {};
       (splitsRes.data || []).forEach((row: any) => {
@@ -65,8 +77,14 @@ export default function Vendas() {
       });
 
       const boletoMap: Record<string, BoletoMetaInfo> = {};
+      const boletoInstallmentsMap: Record<string, { number: number; amount: number }[]> = {};
       (boletoRes.data || []).forEach((row: any) => {
         if (!row.venda_id) return;
+        if (!boletoInstallmentsMap[row.venda_id]) boletoInstallmentsMap[row.venda_id] = [];
+        boletoInstallmentsMap[row.venda_id].push({
+          number: Number(row.parcela_numero),
+          amount: Number(row.valor_parcela),
+        });
         const installments = Number(row.total_parcelas || 0);
         const intervalDays = Number(row.intervalo_dias || 0);
         if (!installments || !intervalDays) return;
@@ -79,6 +97,7 @@ export default function Vendas() {
 
       setSplitsByVenda(splitMap);
       setBoletoMetaByVenda(boletoMap);
+      setBoletoInstallmentsByVenda(boletoInstallmentsMap);
     });
   }, [sales]);
   const { preset, range, onChange } = useDateRangeFilter();
@@ -305,39 +324,59 @@ export default function Vendas() {
 
                         if (hasSplits && !isCancelled) {
                           const boletoMeta = boletoMetaByVenda[sale.id];
-                          return splits.map((s, idx) => {
-                            const info = parseSplitPaymentDisplay(s.method, s.amount, sale.payment_method, boletoMeta);
-                            return (
-                              <div key={idx} className="flex items-center gap-1.5 text-caption">
-                                {getPaymentIcon(s.method)}
-                                <span className="text-muted-foreground">{s.method}:</span>
-                                {info.hasInterest ? (
-                                  <span className="text-primary font-medium">
-                                    {formatCurrency(info.originalTotal)} c/ juros {info.rate}% {formatCurrency(info.finalTotal)}
-                                    {info.installments && ` (${info.installments}x ${formatCurrency(info.installmentValue!)})`}
-                                  </span>
-                                ) : (
-                                  <span className="font-medium text-primary">{formatCurrency(s.amount)}</span>
-                                )}
+                          return (
+                            <div className="flex flex-col items-end">
+                              {splits.map((s, idx) => {
+                                const info = parseSplitPaymentDisplay(s.method, 0, sale.payment_method, boletoMeta);
+                                const boletoInstallments = s.method.toLowerCase().includes("boleto")
+                                  ? boletoInstallmentsByVenda[sale.id]
+                                  : undefined;
+                                const installmentValues = info.installments
+                                  ? distributeAmountInCents(s.amount, info.installments)
+                                  : [];
+                                return (
+                                  <div key={idx} className="flex flex-col items-end text-caption">
+                                    <div className="flex items-center gap-1.5">
+                                      {getPaymentIcon(s.method)}
+                                      <span className="text-muted-foreground">{s.method}:</span>
+                                      <span className="text-primary font-medium">{formatCurrency(s.amount)}</span>
+                                    </div>
+                                    {boletoInstallments?.length ? (
+                                      <span className="text-muted-foreground">{formatStoredInstallments(boletoInstallments)}</span>
+                                    ) : info.installments && info.installments > 1 ? (
+                                      <span className="text-muted-foreground">{formatInstallmentValues(installmentValues)}</span>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                              <div className="flex items-center gap-1.5 text-caption font-medium text-primary">
+                                <span>Total da venda:</span>
+                                <span>{formatCurrency(Number(sale.total))}</span>
                               </div>
-                            );
-                          });
+                            </div>
+                          );
                         }
 
                         // Single payment
-                        const info = parsePaymentDisplay(sale.payment_method, Number(sale.total), boletoMetaByVenda[sale.id]);
+                        const info = parsePaymentDisplay(sale.payment_method, 0, boletoMetaByVenda[sale.id]);
+                        const boletoInstallments = boletoInstallmentsByVenda[sale.id];
+                        const installmentValues = info.installments
+                          ? distributeAmountInCents(Number(sale.total), info.installments)
+                          : [];
                         return (
-                          <div className="flex items-center gap-1.5 text-caption">
-                            {getPaymentIcon(sale.payment_method)}
-                            <span className="text-muted-foreground hidden sm:inline">{sale.payment_method}:</span>
-                            {info.hasInterest && !isCancelled ? (
-                              <span className="text-primary font-medium">
-                                {formatCurrency(info.originalTotal)} c/ juros {info.rate}% {formatCurrency(info.finalTotal)}
-                                {info.installments && ` (${info.installments}x ${formatCurrency(info.installmentValue!)})`}
-                              </span>
-                            ) : (
+                          <div className="flex flex-col items-end text-caption">
+                            <div className="flex items-center gap-1.5">
+                              {getPaymentIcon(sale.payment_method)}
+                              <span className="text-muted-foreground hidden sm:inline">{sale.payment_method}:</span>
                               <span className={`font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-primary"}`}>
                                 {formatCurrency(Number(sale.total))}
+                              </span>
+                            </div>
+                            {!isCancelled && (boletoInstallments?.length || (info.installments && info.installments > 1)) && (
+                              <span className="text-muted-foreground">
+                                {boletoInstallments?.length
+                                  ? formatStoredInstallments(boletoInstallments)
+                                  : formatInstallmentValues(installmentValues)}
                               </span>
                             )}
                           </div>
