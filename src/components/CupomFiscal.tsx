@@ -190,8 +190,8 @@ export function validarCupom(data?: Partial<CupomFiscalData> | null): { ok: bool
       const valorParcela = toCents(Number(parcela.valor ?? 0));
       somaParcelas += valorParcela;
 
-      if (pagamento.tipo === "BOLETO" && (!parcela.prazoDias || ![15, 30].includes(Number(parcela.prazoDias)))) {
-        erros.push(`Boleto ${pagamento.forma} possui parcela sem prazoDias válido (15 ou 30).`);
+      if (pagamento.tipo === "BOLETO" && !(Number(parcela.prazoDias) > 0)) {
+        erros.push(`Boleto ${pagamento.forma} possui parcela sem prazoDias válido.`);
       }
     }
 
