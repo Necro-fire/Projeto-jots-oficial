@@ -11,8 +11,9 @@ DO $t$
 DECLARE
   v_log text := '';
   v_admin uuid; v_emp uuid; v_emp_semprod uuid;
-  v_n integer; v_n2 integer; v_tipo text;
+  v_n integer; v_n2 integer; v_tipo text; v_caixa_aberto uuid;
 BEGIN
+  SELECT id INTO v_caixa_aberto FROM public.caixas WHERE status = 'aberto' LIMIT 1;
   SELECT ur.user_id INTO v_admin FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE r.name = 'admin' LIMIT 1;
   SELECT f.user_id INTO v_emp FROM funcionarios_auth f
    WHERE f.user_id IS NOT NULL AND NOT public.has_role(f.user_id, 'admin') LIMIT 1;
@@ -68,11 +69,16 @@ BEGIN
   END;
 
   -- S5: INSERT direto em caixa_movimentacoes e caixas é recusado
+  -- (S5a usa um caixa aberto real: o trigger de guarda roda antes da RLS e recusaria "caixa fechado")
+  IF v_caixa_aberto IS NULL THEN
+    v_log := v_log || E'S5a INCONCLUSIVO nao ha caixa aberto para testar\n';
+  END IF;
+  IF true THEN
   SET LOCAL ROLE authenticated;
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
   BEGIN
     INSERT INTO public.caixa_movimentacoes (caixa_id, tipo, valor, forma_pagamento, descricao, usuario_id, usuario_nome)
-    VALUES (gen_random_uuid(), 'reforco', 1, 'dinheiro', 'forjada', v_admin, 'x');
+    VALUES (v_caixa_aberto, 'reforco', 1, 'dinheiro', 'forjada', v_admin, 'x');
     RESET ROLE;
     v_log := v_log || E'S5a FALHOU INSERT direto em caixa_movimentacoes passou\n';
   EXCEPTION
@@ -90,6 +96,7 @@ BEGIN
     WHEN insufficient_privilege THEN RESET ROLE; v_log := v_log || E'S5b OK INSERT direto em caixas recusado (RLS)\n';
     WHEN OTHERS THEN RESET ROLE; v_log := v_log || format(E'S5b INCONCLUSIVO %s\n', SQLERRM);
   END;
+  END IF;
 
   -- S6: UPDATE direto de saldo em estoque não altera nenhuma linha
   SET LOCAL ROLE authenticated;
@@ -101,11 +108,10 @@ BEGIN
                          ELSE format(E'S6 FALHOU UPDATE direto alterou %s linhas\n', v_n) END;
 
   -- S7: Storage — quem não tem permissão de produtos não envia imagem
-  IF v_emp_semprod IS NULL THEN
-    v_log := v_log || E'S7 INCONCLUSIVO todos os funcionarios tem produtos.create/edit\n';
-  ELSE
+  -- Sem funcionário "sem produtos" cadastrado, usa um login sem nenhum cargo (uuid aleatório).
+  IF true THEN
     SET LOCAL ROLE authenticated;
-    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_emp_semprod, 'role', 'authenticated')::text, true);
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', COALESCE(v_emp_semprod, gen_random_uuid()), 'role', 'authenticated')::text, true);
     BEGIN
       INSERT INTO storage.objects (bucket_id, name) VALUES ('product-images', 'teste-seguranca.jpg');
       RESET ROLE;
