@@ -141,6 +141,8 @@ export type Database = {
       }
       caixa_movimentacoes: {
         Row: {
+          compra_id: string | null
+          estorno_de: string | null
           caixa_id: string
           created_at: string
           descricao: string
@@ -153,6 +155,8 @@ export type Database = {
           venda_id: string | null
         }
         Insert: {
+          compra_id?: string | null
+          estorno_de?: string | null
           caixa_id: string
           created_at?: string
           descricao?: string
@@ -165,6 +169,8 @@ export type Database = {
           venda_id?: string | null
         }
         Update: {
+          compra_id?: string | null
+          estorno_de?: string | null
           caixa_id?: string
           created_at?: string
           descricao?: string
@@ -375,6 +381,10 @@ export type Database = {
       }
       compras_fornecedor: {
         Row: {
+          status: string
+          cancelada_em: string | null
+          cancelada_por: string | null
+          motivo_cancelamento: string | null
           codigo: string
           created_at: string
           data_compra: string
@@ -388,6 +398,10 @@ export type Database = {
           valor_total: number
         }
         Insert: {
+          status?: string
+          cancelada_em?: string | null
+          cancelada_por?: string | null
+          motivo_cancelamento?: string | null
           codigo?: string
           created_at?: string
           data_compra?: string
@@ -401,6 +415,10 @@ export type Database = {
           valor_total?: number
         }
         Update: {
+          status?: string
+          cancelada_em?: string | null
+          cancelada_por?: string | null
+          motivo_cancelamento?: string | null
           codigo?: string
           created_at?: string
           data_compra?: string
@@ -737,6 +755,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      estoque_movimentacoes: {
+        Row: {
+          created_at: string
+          delta: number
+          filial_id: string
+          id: string
+          origem: string
+          produto_id: string
+          referencia_id: string | null
+          saldo_anterior: number
+          saldo_novo: number
+          usuario_id: string | null
+          usuario_nome: string
+        }
+        Insert: {
+          created_at?: string
+          delta: number
+          filial_id: string
+          id?: string
+          origem?: string
+          produto_id: string
+          referencia_id?: string | null
+          saldo_anterior: number
+          saldo_novo: number
+          usuario_id?: string | null
+          usuario_nome?: string
+        }
+        Update: {
+          created_at?: string
+          delta?: number
+          filial_id?: string
+          id?: string
+          origem?: string
+          produto_id?: string
+          referencia_id?: string | null
+          saldo_anterior?: number
+          saldo_novo?: number
+          usuario_id?: string | null
+          usuario_nome?: string
+        }
+        Relationships: []
       }
       fornecedor_produtos: {
         Row: {
@@ -1329,6 +1389,8 @@ export type Database = {
       }
       venda_item_cancelamentos: {
         Row: {
+          origem: string
+          revertido_em: string | null
           created_at: string
           id: string
           motivo: string
@@ -1341,6 +1403,8 @@ export type Database = {
           venda_item_id: string
         }
         Insert: {
+          origem?: string
+          revertido_em?: string | null
           created_at?: string
           id?: string
           motivo?: string
@@ -1353,6 +1417,8 @@ export type Database = {
           venda_item_id: string
         }
         Update: {
+          origem?: string
+          revertido_em?: string | null
           created_at?: string
           id?: string
           motivo?: string
@@ -1383,6 +1449,7 @@ export type Database = {
       }
       venda_items: {
         Row: {
+          preco_tabela: number | null
           custo_unitario: number
           id: string
           product_code: string
@@ -1395,6 +1462,7 @@ export type Database = {
           venda_id: string
         }
         Insert: {
+          preco_tabela?: number | null
           custo_unitario?: number
           id?: string
           product_code?: string
@@ -1407,6 +1475,7 @@ export type Database = {
           venda_id: string
         }
         Update: {
+          preco_tabela?: number | null
           custo_unitario?: number
           id?: string
           product_code?: string
@@ -1512,24 +1581,129 @@ export type Database = {
     }
     Functions: {
       can_write: { Args: { _user_id: string }; Returns: boolean }
-      cancelar_item_venda: {
+      abrir_caixa: {
+        Args: { _filial_id: string; _valor_abertura: number }
+        Returns: string
+      }
+      caixa_efeito_saldo: {
+        Args: { _tipo: string; _valor: number }
+        Returns: number
+      }
+      caixa_saldo: { Args: { _caixa_id: string }; Returns: number }
+      diagnostico_vendas_caixa: {
+        Args: never
+        Returns: {
+          detalhe: string
+          filial_id: string
+          problema: string
+          sale_code: string
+          venda_id: string
+        }[]
+      }
+      estornar_movimentacao_caixa: {
+        Args: { _motivo: string; _mov_id: string }
+        Returns: string
+      }
+      fechar_caixa: {
+        Args: { _caixa_id: string; _obs: string; _valor_informado: number }
+        Returns: Json
+      }
+      registrar_movimentacao_caixa: {
         Args: {
-          _motivo: string
-          _user_id: string
-          _user_name: string
-          _venda_item_id: string
+          _caixa_id: string
+          _descricao: string
+          _forma_pagamento: string
+          _tipo: string
+          _valor: number
         }
+        Returns: string
+      }
+      reverter_cancelamento_venda: {
+        Args: { _motivo: string; _venda_id: string }
+        Returns: undefined
+      }
+      venda_totais: {
+        Args: { _venda_id: string }
+        Returns: {
+          acrescimo: number
+          desconto: number
+          subtotal_itens: number
+          total: number
+          valor_original: number
+        }[]
+      }
+      ajustar_estoque: {
+        Args: { _delta: number; _filial_id: string; _motivo?: string; _produto_id: string }
+        Returns: number
+      }
+      cancelar_compra: {
+        Args: { _compra_id: string; _motivo: string }
+        Returns: undefined
+      }
+      criar_consignado: {
+        Args: {
+          _cliente_id: string
+          _filial_id: string
+          _observacoes?: string
+          _produto_id: string
+          _quantidade: number
+          _valor_unitario: number
+        }
+        Returns: Json
+      }
+      definir_estoque: {
+        Args: { _filial_id: string; _motivo?: string; _produto_id: string; _quantidade: number }
+        Returns: number
+      }
+      devolver_consignado: {
+        Args: { _consignado_id: string; _quantidade: number }
+        Returns: Json
+      }
+      editar_compra: {
+        Args: { _compra_id: string; _descricao: string; _observacoes: string; _valor_total: number }
+        Returns: undefined
+      }
+      editar_consignado: {
+        Args: { _cliente_id: string; _consignado_id: string; _observacoes: string; _quantidade: number }
+        Returns: undefined
+      }
+      excluir_consignado: { Args: { _consignado_id: string }; Returns: undefined }
+      pode: { Args: { _action: string; _module: string }; Returns: boolean }
+      registrar_compra: { Args: { _payload: Json }; Returns: Json }
+      registrar_item_compra_pendente: {
+        Args: { _compra_id: string; _produto_id: string; _quantidade: number; _valor_unitario: number }
+        Returns: undefined
+      }
+      salvar_produto: {
+        Args: { _dados: Json; _filiais?: string[]; _produto_id?: string; _quantidade?: number }
+        Returns: Json
+      }
+      trocar_consignado: {
+        Args: {
+          _consignado_original_id: string
+          _novo_produto_id: string
+          _novo_quantidade: number
+          _novo_valor_unitario: number
+          _troca_quantidade?: number
+        }
+        Returns: Json
+      }
+      vender_consignado_manual: { Args: { _consignado_id: string }; Returns: undefined }
+      assert_filial_access: { Args: { _filial_id: string }; Returns: undefined }
+      atacado_preco_regra: {
+        Args: { _preco: number; _tipo_valor: string; _valor: number }
+        Returns: number
+      }
+      cancelar_item_venda: {
+        Args: { _motivo: string; _venda_item_id: string }
         Returns: undefined
       }
       cancelar_venda: {
-        Args: {
-          _motivo: string
-          _user_id: string
-          _user_name: string
-          _venda_id: string
-        }
+        Args: { _motivo: string; _venda_id: string }
         Returns: undefined
       }
+      criar_venda: { Args: { _payload: Json }; Returns: Json }
+      current_user_name: { Args: never; Returns: string }
       generate_compra_code: { Args: never; Returns: string }
       generate_fornecedor_code: { Args: never; Returns: string }
       generate_product_codes: { Args: never; Returns: Json }

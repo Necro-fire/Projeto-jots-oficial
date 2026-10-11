@@ -22,6 +22,7 @@ interface AuthContextType {
   roles: string[];
   isAdmin: boolean;
   loading: boolean;
+  loadError: string | null;
   employeeFilialId: string | null;
   hasPermission: (module: string, action: string) => boolean;
   hasRole: (role: string) => boolean;
@@ -39,9 +40,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [employeeFilialId, setEmployeeFilialId] = useState<string | null>(null);
 
   const loadUserData = useCallback(async (userId: string) => {
+    setLoadError(null);
     try {
       const [profileRes, adminRes, permsRes, rolesRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
@@ -49,6 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase.rpc('get_user_permissions', { _user_id: userId }),
         supabase.from('user_roles').select('role_id, roles(name)').eq('user_id', userId),
       ]);
+
+      const failed = [profileRes, adminRes, permsRes, rolesRes].find((r) => r.error);
+      if (failed?.error) throw failed.error;
 
       if (profileRes.data) setProfile(profileRes.data as unknown as Profile);
       const userIsAdmin = !!adminRes.data;
@@ -71,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       console.error('Error loading user data:', e);
+      setLoadError('Não foi possível carregar seu perfil e suas permissões. Verifique a conexão e tente novamente.');
     }
   }, []);
 
@@ -91,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRoles([]);
         setIsAdmin(false);
         setEmployeeFilialId(null);
+        setLoadError(null);
       }
       setLoading(false);
     });
@@ -121,9 +129,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) {
       try {
         await supabase.functions.invoke('auth-api', {
-          body: { action: 'logout', user_id: user.id, user_name: profile?.nome || '' },
+          body: { action: 'logout' },
         });
-      } catch {}
+      } catch (e) {
+        console.error('Falha ao registrar logout:', e);
+      }
     }
     await supabase.auth.signOut();
     setProfile(null);
@@ -135,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      session, user, profile, permissions, roles, isAdmin, loading,
+      session, user, profile, permissions, roles, isAdmin, loading, loadError,
       employeeFilialId,
       hasPermission, hasRole, signOut, refreshPermissions,
     }}>

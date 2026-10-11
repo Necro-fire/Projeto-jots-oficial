@@ -25,7 +25,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { FilialSelector } from "@/components/FilialSelector";
 import { DateRangeFilter, useDateRangeFilter, filterByDateRange } from "@/components/DateRangeFilter";
-import { useCaixas, useMovimentacoes, abrirCaixa, fecharCaixa, addMovimentacao, removeCaixaHistorico, type DbCaixa } from "@/hooks/useCaixa";
+import { useCaixas, useMovimentacoes, abrirCaixa, fecharCaixa, addMovimentacao, estornarMovimentacao, removeCaixaHistorico, type DbCaixa, type DbCaixaMovimentacao } from "@/hooks/useCaixa";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -61,6 +61,8 @@ export default function Caixa() {
   const [tab, setTab] = useState("ativo");
   const [caixaParaRemoverHistorico, setCaixaParaRemoverHistorico] = useState<DbCaixa | null>(null);
   const [removingHistory, setRemovingHistory] = useState(false);
+  const [movParaEstornar, setMovParaEstornar] = useState<DbCaixaMovimentacao | null>(null);
+  const [motivoEstorno, setMotivoEstorno] = useState("");
 
   // Find open caixa for current filial
   const caixaAberto = useMemo(() => {
@@ -87,14 +89,15 @@ export default function Caixa() {
     for (const m of movs) {
       if (m.tipo === "venda") { vendas += m.valor; }
       else if (m.tipo === "sangria") { sangrias += m.valor; }
-      else if (m.tipo === "reforco") { reforcos += m.valor; }
-      else if (m.tipo === "despesa") { despesas += m.valor; }
-      else if (m.tipo === "cancelamento" || m.tipo === "cancelamento_item") {
-        // Estorno: valor já vem negativo do backend, soma direto em vendas
+      else if (m.tipo === "reforco" || m.tipo === "entrada") { reforcos += m.valor; }
+      else if (m.tipo === "despesa" || m.tipo === "saida") { despesas += m.valor; }
+      else if (m.tipo === "cancelamento" || m.tipo === "cancelamento_item" || m.tipo === "reversao_cancelamento") {
+        // Estorno: o valor já vem com o sinal certo do banco (negativo no cancelamento,
+        // positivo quando o cancelamento é desfeito); soma direto em vendas
         vendas += m.valor;
       }
 
-      if (m.tipo === "venda" || m.tipo === "reforco" || m.tipo === "cancelamento" || m.tipo === "cancelamento_item") {
+      if (m.tipo === "venda" || m.tipo === "reforco" || m.tipo === "entrada" || m.tipo === "cancelamento" || m.tipo === "cancelamento_item" || m.tipo === "reversao_cancelamento") {
         porForma[m.forma_pagamento] = (porForma[m.forma_pagamento] || 0) + m.valor;
       }
     }
@@ -112,7 +115,7 @@ export default function Caixa() {
     if (!user || selectedFilial === "all") return;
     setSubmitting(true);
     try {
-      await abrirCaixa(selectedFilial, valorAbertura, user.id, userName);
+      await abrirCaixa(selectedFilial, valorAbertura);
       toast.success("Caixa aberto com sucesso!");
       setOpenDialog(null);
       setValorAbertura(0);
@@ -125,8 +128,8 @@ export default function Caixa() {
     if (!user || !caixaAberto) return;
     setSubmitting(true);
     try {
-      const valorInf = valorFechamento;
-      await fecharCaixa(caixaAberto.id, valorInf, summary.saldo, user.id, userName, obsFechamento);
+      // O valor esperado é calculado no banco (não depende da tela estar atualizada).
+      await fecharCaixa(caixaAberto.id, valorFechamento, obsFechamento);
       toast.success("Caixa fechado com sucesso!");
       setOpenDialog(null);
       setValorFechamento(0);
@@ -143,7 +146,7 @@ export default function Caixa() {
     if (!movDesc.trim()) { toast.error("Informe uma descrição/justificativa."); return; }
     setSubmitting(true);
     try {
-      await addMovimentacao(caixaAberto.id, movTipo, valor, movForma, movDesc.trim(), user.id, userName);
+      await addMovimentacao(caixaAberto.id, movTipo, valor, movForma, movDesc.trim());
       toast.success("Movimentação registrada!");
       setOpenDialog(null);
       setMovValor(0);
@@ -172,10 +175,30 @@ export default function Caixa() {
     }
   }
 
-  const tipoLabel: Record<string, string> = { venda: "Venda", sangria: "Sangria", reforco: "Reforço", despesa: "Despesa", cancelamento: "Estorno", cancelamento_item: "Estorno item" };
-  const tipoColor: Record<string, string> = { venda: "bg-primary/10 text-primary", sangria: "bg-destructive/10 text-destructive", reforco: "bg-accent/10 text-accent-foreground", despesa: "bg-warning/10 text-warning-foreground", cancelamento: "bg-destructive/10 text-destructive", cancelamento_item: "bg-destructive/10 text-destructive" };
+  async function handleEstornarMov() {
+    if (!movParaEstornar) return;
+    if (!motivoEstorno.trim()) { toast.error("Informe o motivo do estorno."); return; }
+    setSubmitting(true);
+    try {
+      await estornarMovimentacao(movParaEstornar.id, motivoEstorno.trim());
+      toast.success("Movimentação estornada.");
+      setMovParaEstornar(null);
+      setMotivoEstorno("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao estornar movimentação");
+    } finally { setSubmitting(false); }
+  }
+
+  const tipoLabel: Record<string, string> = { venda: "Venda", sangria: "Sangria", reforco: "Reforço", despesa: "Despesa", cancelamento: "Estorno", cancelamento_item: "Estorno item", reversao_cancelamento: "Cancelamento desfeito", saida: "Saída (compra)", entrada: "Entrada" };
+  const tipoColor: Record<string, string> = { venda: "bg-primary/10 text-primary", sangria: "bg-destructive/10 text-destructive", reforco: "bg-accent/10 text-accent-foreground", despesa: "bg-warning/10 text-warning-foreground", cancelamento: "bg-destructive/10 text-destructive", cancelamento_item: "bg-destructive/10 text-destructive", reversao_cancelamento: "bg-accent/10 text-accent-foreground", saida: "bg-warning/10 text-warning-foreground", entrada: "bg-accent/10 text-accent-foreground" };
 
   const viewingCaixa = selectedCaixa || caixaAberto;
+
+  // Movimentações manuais ainda sem estorno (o banco aceita um estorno por lançamento).
+  const estornadas = new Set(movs.filter(m => m.estorno_de).map(m => m.estorno_de as string));
+  const podeEstornar = (m: DbCaixaMovimentacao) =>
+    canManage && viewingCaixa?.status === "aberto" && !m.venda_id && !m.estorno_de && !estornadas.has(m.id) &&
+    (m.tipo === "sangria" || m.tipo === "reforco" || m.tipo === "despesa");
 
   return (
     <div>
@@ -355,6 +378,7 @@ export default function Caixa() {
                               <TableHead>Pagamento</TableHead>
                               <TableHead>Usuário</TableHead>
                               <TableHead className="text-right">Valor</TableHead>
+                              <TableHead></TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -370,7 +394,15 @@ export default function Caixa() {
                                 <TableCell className="text-xs">{FORMAS_PAGAMENTO.find(f => f.value === m.forma_pagamento)?.label || m.forma_pagamento}</TableCell>
                                 <TableCell className="text-xs">{m.usuario_nome}</TableCell>
                                 <TableCell className={`text-right font-semibold tabular-nums text-sm ${m.valor < 0 || m.tipo === "sangria" || m.tipo === "despesa" ? "text-destructive" : "text-primary"}`}>
-                                  {m.valor < 0 ? "" : (m.tipo === "sangria" || m.tipo === "despesa" ? "- " : "+ ")}{formatCurrency(m.valor)}
+                                  {m.valor < 0 ? "" : (m.tipo === "sangria" || m.tipo === "despesa" || m.tipo === "saida" ? "- " : "+ ")}{formatCurrency(m.valor)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {podeEstornar(m) && (
+                                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setMovParaEstornar(m); setMotivoEstorno(""); }}>
+                                      Estornar
+                                    </Button>
+                                  )}
+                                  {estornadas.has(m.id) && <span className="text-xs text-muted-foreground">estornada</span>}
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -632,6 +664,28 @@ export default function Caixa() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Estorno de movimentação manual */}
+      <Dialog open={!!movParaEstornar} onOpenChange={(o) => { if (!o) { setMovParaEstornar(null); setMotivoEstorno(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Estornar movimentação</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {movParaEstornar && `${movParaEstornar.tipo} de ${formatCurrency(movParaEstornar.valor)} — ${movParaEstornar.descricao}`}
+            </p>
+            <div className="space-y-1.5">
+              <Label>Motivo do estorno</Label>
+              <Textarea value={motivoEstorno} onChange={(e) => setMotivoEstorno(e.target.value)} placeholder="Ex.: lançado por engano" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMovParaEstornar(null)}>Cancelar</Button>
+            <Button onClick={handleEstornarMov} disabled={submitting}>Estornar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

@@ -25,25 +25,22 @@ export function CupomFiscalDialog({ open, onOpenChange, data }: CupomFiscalDialo
     const printWindow = window.open("", "_blank", "width=320,height=600");
     if (!printWindow) return;
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Cupom Fiscal</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
-          @media print {
-            @page { margin: 0; size: 80mm auto; }
-            body { width: 80mm; }
-          }
-          @page { margin: 0; }
-        </style>
-      </head>
-      <body>${cupomRef.current.innerHTML}</body>
-      </html>
-    `);
-    printWindow.document.close();
+    // Monta o documento por DOM (sem document.write de HTML em string): o conteúdo do cupom
+    // é importado como nós, então nenhum dado de cliente/produto é reinterpretado como HTML.
+    const doc = printWindow.document;
+    doc.title = "Cupom Fiscal";
+    const style = doc.createElement("style");
+    style.textContent = `
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
+      @media print {
+        @page { margin: 0; size: 80mm auto; }
+        body { width: 80mm; }
+      }
+      @page { margin: 0; }
+    `;
+    doc.head.appendChild(style);
+    doc.body.appendChild(doc.importNode(cupomRef.current, true));
     printWindow.focus();
     setTimeout(() => {
       printWindow.print();

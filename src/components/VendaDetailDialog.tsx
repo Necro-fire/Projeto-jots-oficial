@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Banknote, CreditCard, QrCode, FileText, Package, Ban, AlertTriangle, XCircle, Tag, Clock, Receipt, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { cancelarVenda } from "@/hooks/useSupabaseData";
+import { cancelarVenda, reverterCancelamentoVenda } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { distributeAmountInCents, parsePaymentDisplay, parseSplitPaymentDisplay, isSplitPayment, parseSplitMethods, formatCurrency, type BoletoMetaInfo } from "@/lib/paymentUtils";
@@ -68,7 +68,10 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [cancelling, setCancelling] = useState(false);
-  const { user, profile, hasPermission } = useAuth();
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+  const [undoMotivo, setUndoMotivo] = useState("");
+  const [undoing, setUndoing] = useState(false);
+  const { hasPermission } = useAuth();
 
   // Item-level cancel state
   const [cancellingItemId, setCancellingItemId] = useState<string | null>(null);
@@ -144,12 +147,7 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
     }
     setCancelling(true);
     try {
-      await cancelarVenda(
-        venda.id,
-        motivo.trim(),
-        user?.id || "",
-        profile?.nome || user?.email || ""
-      );
+      await cancelarVenda(venda.id, motivo.trim());
       toast.success("Venda cancelada com sucesso");
       setShowCancelConfirm(false);
       setMotivo("");
@@ -158,6 +156,25 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
       toast.error(err.message || "Erro ao cancelar venda");
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleUndoCancel = async () => {
+    if (!undoMotivo.trim()) {
+      toast.error("Informe o motivo para desfazer o cancelamento");
+      return;
+    }
+    setUndoing(true);
+    try {
+      await reverterCancelamentoVenda(venda.id, undoMotivo.trim());
+      toast.success("Cancelamento desfeito: itens, estoque e caixa foram restaurados");
+      setShowUndoConfirm(false);
+      setUndoMotivo("");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao desfazer cancelamento");
+    } finally {
+      setUndoing(false);
     }
   };
 
@@ -172,8 +189,6 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
       const { error } = await (supabase as any).rpc("cancelar_item_venda", {
         _venda_item_id: cancellingItemId,
         _motivo: itemMotivo.trim(),
-        _user_id: user?.id || "",
-        _user_name: profile?.nome || user?.email || "",
       });
       if (error) throw new Error(error.message);
       toast.success("Item cancelado com sucesso");
@@ -633,8 +648,51 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
               </Button>
             </>
           )}
+          {/* Undo cancellation */}
+          {isCancelled && hasPermission('vendas', 'cancel') && (
+            <>
+              <Separator />
+              <Button variant="outline" className="w-full" onClick={() => setShowUndoConfirm(true)}>
+                Desfazer cancelamento
+              </Button>
+            </>
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Undo cancellation confirmation */}
+      <AlertDialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desfazer o cancelamento da venda {(venda as any).sale_code || `#${venda.number}`}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os itens voltam à venda, o estoque é baixado novamente e o valor estornado é lançado de volta
+              no caixa aberto da filial. O caixa precisa estar aberto e o estoque disponível.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <label className="text-sm font-medium mb-1.5 block">Motivo *</label>
+            <Textarea
+              placeholder="Informe o motivo..."
+              value={undoMotivo}
+              onChange={(e) => setUndoMotivo(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={undoing}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleUndoCancel();
+              }}
+              disabled={undoing || !undoMotivo.trim()}
+            >
+              {undoing ? "Restaurando..." : "Desfazer cancelamento"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Cancel entire sale confirmation */}
       <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>

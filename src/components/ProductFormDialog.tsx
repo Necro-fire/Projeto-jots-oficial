@@ -14,7 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { DbProduct } from "@/hooks/useSupabaseData";
-import { generateProductCodes, findProductByHash, upsertEstoque } from "@/hooks/useSupabaseData";
 
 import { generateProductHash } from "@/lib/productHash";
 import { normalizeProductModelName, resolveProductModelName } from "@/lib/productModel";
@@ -493,52 +492,37 @@ export function ProductFormDialog({
         ...accessoryFields,
       });
 
+      // Cada gravação é UMA transação no banco: produto + saldo (+ histórico de estoque).
+      // Se qualquer filial falhar, nada fica gravado.
       if (isEditing) {
-        const baseData = buildBaseData();
-
-        const { error } = await (supabase as any).from("produtos").update(baseData).eq("id", product!.id);
-        if (error) throw error;
-
-        const { data: existingEstoque } = await (supabase as any)
-          .from("estoque")
-          .select("id")
-          .eq("produto_id", product!.id)
-          .eq("filial_id", filial)
-          .maybeSingle();
-
-        if (existingEstoque) {
-          await (supabase as any).from("estoque").update({ quantidade: qty }).eq("id", existingEstoque.id);
-        } else {
-          await (supabase as any).from("estoque").insert({ produto_id: product!.id, filial_id: filial, quantidade: qty });
-        }
+        const { error } = await supabase.rpc("salvar_produto", {
+          _dados: buildBaseData() as never,
+          _produto_id: product!.id,
+          _quantidade: qty,
+        });
+        if (error) throw new Error(error.message);
 
         toast.success("Produto atualizado com sucesso!");
       } else {
         const targetFilials = filial === "all" ? ["1", "2", "3"] : [filial];
-        const createdIds: string[] = [];
 
-        for (const fId of targetFilials) {
-          const codes = await generateProductCodes();
-          const baseData = buildBaseData(codes, fId);
+        const { data, error } = await supabase.rpc("salvar_produto", {
+          _dados: buildBaseData() as never,
+          _filiais: targetFilials,
+          _quantidade: qty,
+        });
+        if (error) throw new Error(error.message);
 
-          const { data: newProduct, error } = await (supabase as any).from("produtos").insert(baseData).select().single();
-          if (error) throw error;
-          createdIds.push(newProduct.id);
-
-          await (supabase as any).from("estoque").insert({
-            produto_id: newProduct.id,
-            filial_id: fId,
-            quantidade: qty,
-          });
-
+        const created = (data as unknown as { id: string; filial_id: string; barcode: string }[]) || [];
+        for (const c of created) {
           toast.success(
-            targetFilials.length > 1
-              ? `Produto cadastrado na filial ${fId}!`
-              : `Produto cadastrado! Código de barras: ${codes.barcode}`
+            created.length > 1
+              ? `Produto cadastrado na filial ${c.filial_id}!`
+              : `Produto cadastrado! Código de barras: ${c.barcode}`
           );
         }
 
-        onSaved?.(createdIds);
+        onSaved?.(created.map((c) => c.id));
       }
 
       resetForm();

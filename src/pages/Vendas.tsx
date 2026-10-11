@@ -12,7 +12,7 @@ import { FilialSelector } from "@/components/FilialSelector";
 import { DateRangeFilter, useDateRangeFilter, filterByDateRange } from "@/components/DateRangeFilter";
 import { VendaDetailDialog } from "@/components/VendaDetailDialog";
 import { CupomFiscalDialog } from "@/components/CupomFiscalDialog";
-import { useVendas, type DbVenda } from "@/hooks/useSupabaseData";
+import { useVendas, historyDaysFor, type DbVenda } from "@/hooks/useSupabaseData";
 import { useNotasFiscais } from "@/hooks/useNotasFiscais";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -40,7 +40,9 @@ function formatStoredInstallments(values: { number: number; amount: number }[]):
 }
 
 export default function Vendas() {
-  const { data: sales } = useVendas();
+  const { preset, range, onChange } = useDateRangeFilter();
+  // Janela padrão de 90 dias; períodos mais antigos são buscados sob demanda pelo filtro de data.
+  const { data: sales } = useVendas({ sinceDays: historyDaysFor(range.from) });
   const { data: notasFiscais } = useNotasFiscais();
   
   // Set of venda IDs that have NF-e linked
@@ -100,7 +102,6 @@ export default function Vendas() {
       setBoletoInstallmentsByVenda(boletoInstallmentsMap);
     });
   }, [sales]);
-  const { preset, range, onChange } = useDateRangeFilter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [boletoFilter, setBoletoFilter] = useState("all");

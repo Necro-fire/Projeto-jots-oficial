@@ -51,42 +51,14 @@ export function CompraDetailDialog({ open, onOpenChange, compra, onRefetch }: Pr
     if (!profile) return;
     setSaving(true);
     try {
-      const oldValor = compra.valor_total;
-      const newValor = editForm.valor_total;
-      const diferenca = newValor - oldValor;
-
-      const { error } = await (supabase as any)
-        .from("compras_fornecedor")
-        .update({
-          descricao: editForm.descricao,
-          valor_total: newValor,
-          observacoes: editForm.observacoes,
-        })
-        .eq("id", compra.id);
-
-      if (error) throw error;
-
-      // Adjust caixa if value changed
-      if (diferenca !== 0) {
-        const { data: caixaAberto } = await (supabase as any)
-          .from("caixas")
-          .select("id")
-          .eq("filial_id", compra.filial_id)
-          .eq("status", "aberto")
-          .maybeSingle();
-
-        if (caixaAberto) {
-          await (supabase as any).from("caixa_movimentacoes").insert({
-            caixa_id: caixaAberto.id,
-            tipo: diferenca > 0 ? "saida" : "entrada",
-            valor: Math.abs(diferenca),
-            forma_pagamento: "dinheiro",
-            descricao: `Ajuste compra ${compra.codigo}: ${diferenca > 0 ? "acréscimo" : "redução"} de ${fmt(Math.abs(diferenca))}`,
-            usuario_id: profile.id,
-            usuario_nome: profile.nome,
-          });
-        }
-      }
+      // Uma transação no banco: atualiza a compra e lança a diferença no caixa aberto.
+      const { error } = await supabase.rpc("editar_compra", {
+        _compra_id: compra.id,
+        _descricao: editForm.descricao,
+        _valor_total: editForm.valor_total,
+        _observacoes: editForm.observacoes,
+      });
+      if (error) throw new Error(error.message);
 
       toast.success("Compra atualizada");
       setEditing(false);
@@ -101,31 +73,13 @@ export function CompraDetailDialog({ open, onOpenChange, compra, onRefetch }: Pr
     if (!profile) return;
     setCancelling(true);
     try {
-      // Reverse the expense in caixa
-      const { data: caixaAberto } = await (supabase as any)
-        .from("caixas")
-        .select("id")
-        .eq("filial_id", compra.filial_id)
-        .eq("status", "aberto")
-        .maybeSingle();
-
-      if (caixaAberto) {
-        await (supabase as any).from("caixa_movimentacoes").insert({
-          caixa_id: caixaAberto.id,
-          tipo: "entrada",
-          valor: compra.valor_total,
-          forma_pagamento: "dinheiro",
-          descricao: `Estorno compra cancelada ${compra.codigo} — ${compra.fornecedor?.nome || ""}`,
-          usuario_id: profile.id,
-          usuario_nome: profile.nome,
-        });
-      }
-
-      // Delete compra_items
-      await (supabase as any).from("compra_items").delete().eq("compra_id", compra.id);
-      // Delete the compra
-      const { error } = await (supabase as any).from("compras_fornecedor").delete().eq("id", compra.id);
-      if (error) throw error;
+      // Uma transação no banco: devolve o estoque que a compra colocou, estorna o caixa
+      // e marca a compra como cancelada (o histórico é mantido).
+      const { error } = await supabase.rpc("cancelar_compra", {
+        _compra_id: compra.id,
+        _motivo: "Cancelamento pela tela de compras",
+      });
+      if (error) throw new Error(error.message);
 
       toast.success("Compra cancelada e estornada no caixa");
       setShowConfirmCancel(false);

@@ -38,7 +38,8 @@ export function useHistoricoCompras() {
 
     let query = (supabase as any)
       .from("compras_fornecedor")
-      .select("*, fornecedores(id, nome, codigo, filial_id)");
+      .select("*, fornecedores(id, nome, codigo, filial_id)")
+      .neq("status", "cancelada");
 
     if (selectedFilial !== "all") {
       query = query.eq("filial_id", selectedFilial);

@@ -15,7 +15,7 @@ import { useProducts, useClients, createVenda, type DbProduct } from "@/hooks/us
 import { useDescontosAtacado, type DescontoAtacado } from "@/hooks/useDescontosAtacado";
 import { createConsignado } from "@/hooks/useConsignados";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useBlocker, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SplitPaymentPanel, type PaymentEntry } from "@/components/pdv/SplitPaymentPanel";
 import { ClientSearchPanel } from "@/components/pdv/ClientSearchPanel";
@@ -25,6 +25,8 @@ import { DiscountRuleDialog } from "@/components/pdv/DiscountRuleDialog";
 import { ProductImageDialog } from "@/components/pdv/ProductImageDialog";
 import { CupomFiscalDialog } from "@/components/CupomFiscalDialog";
 import { buildCupomFromVendaId } from "@/lib/cupomFiscalUtils";
+import { loadPdvSession, savePdvSession } from "@/lib/pdvSession";
+import { useCaixaAberto } from "@/hooks/useCaixa";
 import { normalizeProductModelName } from "@/lib/productModel";
 import type { CupomFiscalData } from "@/components/CupomFiscal";
 import { matchesProductSearch, findByExactBarcode } from "@/lib/productSearch";
@@ -324,6 +326,11 @@ export default function PDV() {
     setCart(prev => prev.filter(i => i.cartId !== cartId));
   };
 
+  // Filial em que a venda será registrada e o estado REAL do caixa dela (banco, tempo real).
+  const saleFilialId = selectedFilial === "all" ? (cart[0]?.product.filial_id ?? null) : selectedFilial;
+  const { caixa: caixaDaVenda, loading: loadingCaixa } = useCaixaAberto(saleFilialId);
+  const caixaFechado = !!saleFilialId && !loadingCaixa && !caixaDaVenda;
+
   const finalizeSale = async () => {
     if (!selectedClient) { toast.error("Selecione um cliente"); return; }
     if (cart.length === 0) { toast.error("Adicione produtos"); return; }
@@ -345,7 +352,14 @@ export default function PDV() {
     }
 
     const client = clients.find(c => c.id === selectedClient);
-    const filialId = selectedFilial === "all" ? "1" : selectedFilial;
+    // Em "todas as filiais", a venda pertence à filial dos produtos do carrinho (que devem ser de uma só).
+    const cartFiliais = Array.from(new Set(cart.map(i => i.product.filial_id)));
+    if (selectedFilial === "all" && cartFiliais.length > 1) {
+      toast.error("O carrinho tem produtos de filiais diferentes. Venda cada filial separadamente.");
+      return;
+    }
+    const filialId = selectedFilial === "all" ? cartFiliais[0] : selectedFilial;
+    if (!filialId) { toast.error("Não foi possível identificar a filial da venda."); return; }
 
     setSubmitting(true);
     try {
@@ -408,9 +422,6 @@ export default function PDV() {
         saleTotal = boletoInfo.finalTotal;
       }
 
-      // Record atacado discount
-      const saleDiscount = totalSaved > 0 ? totalSaved : 0;
-
       const splits = isSplitPayment
         ? paymentEntries.map(e => {
             const method = e.method === "cartao" && e.installments
@@ -431,33 +442,17 @@ export default function PDV() {
           })
         : undefined;
 
-      const result = await createVenda(items, selectedClient, client?.store_name || "", finalMethod, saleOrigin, filialId, saleDiscount, user?.id, profile?.nome || user?.email || "", splits, saleTotal);
-
-      toast.success(`Venda finalizada! ${result.sale_code || '#' + result.number} — Total: R$ ${saleTotal.toFixed(2)}`);
-
-      // Mark linked consignados as sold (single-item path or full-cart conversion)
+      // Consignados convertidos nesta venda: o banco marca como vendidos na mesma transação
+      // e não baixa o estoque duas vezes.
       const consignadosToMark = pendingConsignadoIds.length > 0
         ? pendingConsignadoIds
         : (pendingConsignadoId ? [pendingConsignadoId] : []);
 
-      if (consignadosToMark.length > 0) {
-        try {
-          await (supabase as any)
-            .from("consignados")
-            .update({ status: "vendido", venda_id: result.id })
-            .in("id", consignadosToMark);
+      const result = await createVenda(items, selectedClient, client?.store_name || "", finalMethod, saleOrigin, filialId, splits, saleTotal, consignadosToMark);
 
-          const histRows = consignadosToMark.map(cid => ({
-            consignado_id: cid,
-            acao: "venda_pdv",
-            detalhes: { venda_id: result.id, sale_code: result.sale_code, conversao_carrinho: pendingConsignadoIds.length > 0 },
-            usuario_id: user?.id,
-            usuario_nome: profile?.nome || "",
-          }));
-          await (supabase as any).from("consignado_historico").insert(histRows);
-        } catch (e) {
-          console.error("Erro ao marcar consignados como vendidos:", e);
-        }
+      toast.success(`Venda finalizada! ${result.sale_code || '#' + result.number} — Total: R$ ${saleTotal.toFixed(2)}`);
+
+      if (consignadosToMark.length > 0) {
         setPendingConsignadoId(null);
         setPendingConsignadoIds([]);
         setConversionBanner(false);
@@ -530,8 +525,53 @@ export default function PDV() {
     }
   };
 
-  // Block navigation when cart has items
-  const blocker = useBlocker(cart.length > 0);
+  // A sacola é guardada na sessão: dá para navegar para outras telas e voltar sem perder a seleção.
+  const [sessionHydrated, setSessionHydrated] = useState(false);
+
+  // Restaura (uma vez) quando os produtos terminam de carregar.
+  useEffect(() => {
+    if (sessionHydrated || products.length === 0) return;
+    setSessionHydrated(true);
+
+    const state = location.state as any;
+    if (state?.fromConsignado || state?.consignacaoMode) return; // entrada por outro fluxo
+
+    const snap = loadPdvSession();
+    if (!snap || snap.productIds.length === 0 && !snap.selectedClient) return;
+    if (snap.filial !== selectedFilial) return;
+
+    const byId = new Map(products.map(p => [p.id, p]));
+    const restored: CartItem[] = [];
+    const seen = new Map<string, number>();
+    for (const id of snap.productIds) {
+      const product = byId.get(id);
+      if (!product || product.status !== "active") continue;
+      const n = (seen.get(id) || 0) + 1;
+      if (n > product.stock) continue; // saldo mudou enquanto estava fora
+      seen.set(id, n);
+      restored.push({ cartId: nextCartId(), product });
+    }
+    if (restored.length > 0) setCart(prev => (prev.length === 0 ? restored : prev));
+    if (snap.selectedClient) setSelectedClient(prev => prev || snap.selectedClient);
+    if (snap.paymentMethod) setPaymentMethod(prev => prev || snap.paymentMethod);
+    if (snap.consignacaoMode) setConsignacaoMode(true);
+    if (restored.length > 0 && restored.length < snap.productIds.length) {
+      toast.info("Alguns produtos da sacola não estão mais disponíveis e foram removidos.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, sessionHydrated]);
+
+  // Persiste a cada mudança, só depois da restauração (para não apagar o que foi guardado).
+  useEffect(() => {
+    if (!sessionHydrated) return;
+    savePdvSession({
+      filial: selectedFilial,
+      productIds: cart.map(i => i.product.id),
+      selectedClient,
+      paymentMethod,
+      consignacaoMode,
+    });
+  }, [sessionHydrated, cart, selectedFilial, selectedClient, paymentMethod, consignacaoMode]);
 
   // Browser tab close / refresh warning
   useEffect(() => {
@@ -955,11 +995,16 @@ export default function PDV() {
                     );
                   })()}
                 </div>
+                {caixaFechado && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    O caixa da filial {saleFilialId} está fechado. Abra o caixa (menu Caixa) para finalizar a venda — a sacola é mantida.
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button variant="outline" className="flex-1 h-10" onClick={() => { setCart([]); setCreditCardInfo(null); setBoletoInfo(null); }}>
                     Cancelar
                   </Button>
-                  <Button className="flex-1 h-10" onClick={finalizeSale} disabled={submitting || !canSell} title={!canSell ? "Sem permissão para vender" : undefined}>
+                  <Button className="flex-1 h-10" onClick={finalizeSale} disabled={submitting || !canSell || caixaFechado} title={!canSell ? "Sem permissão para vender" : caixaFechado ? "Caixa fechado" : undefined}>
                     {submitting ? "Processando..." : "Finalizar (F2)"}
                   </Button>
                 </div>
@@ -968,32 +1013,6 @@ export default function PDV() {
           </div>
         </div>
       </div>
-
-      {/* Navigation blocker alert */}
-      <AlertDialog open={blocker.state === "blocked"}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sacola com produtos</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se você sair agora, os produtos da sacola serão removidos. Deseja sair mesmo assim?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => blocker.reset?.()}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setCart([]);
-                blocker.proceed?.();
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Sair mesmo assim
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Filial change blocker alert */}
       <AlertDialog open={pendingFilial !== null}>

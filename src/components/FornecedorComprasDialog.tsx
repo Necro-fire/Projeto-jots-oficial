@@ -33,54 +33,28 @@ export function FornecedorComprasDialog({ open, onOpenChange, fornecedor }: Prop
     }
 
     setSaving(true);
-
-    // Require open caixa
-    const { data: caixaAberto } = await (supabase as any)
-      .from("caixas")
-      .select("id")
-      .eq("filial_id", fornecedor.filial_id)
-      .eq("status", "aberto")
-      .maybeSingle();
-
-    if (!caixaAberto) {
-      toast.error("O caixa da filial precisa estar aberto para registrar compras.");
-      setSaving(false);
-      return;
-    }
-
-    const { data: compra, error } = await (supabase as any)
-      .from("compras_fornecedor")
-      .insert({
-        fornecedor_id: fornecedor.id,
-        descricao: form.descricao,
-        valor_total: form.valor_total,
-        data_compra: form.data_compra || new Date().toISOString(),
-        observacoes: form.observacoes,
-        filial_id: fornecedor.filial_id,
-        usuario_id: profile.id,
-        usuario_nome: profile.nome,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      toast.error("Erro ao registrar compra");
-    } else {
-      // Register as expense in open caixa
-      await (supabase as any).from("caixa_movimentacoes").insert({
-        caixa_id: caixaAberto.id,
-        tipo: "saida",
-        valor: form.valor_total,
-        forma_pagamento: "dinheiro",
-        descricao: `Compra: ${form.descricao} — Fornecedor: ${fornecedor.nome}`,
-        usuario_id: profile.id,
-        usuario_nome: profile.nome,
+    try {
+      // Uma transação no banco: grava a compra e lança a despesa no caixa aberto da filial.
+      const { error } = await supabase.rpc("registrar_compra", {
+        _payload: {
+          fornecedor_id: fornecedor.id,
+          descricao: form.descricao,
+          valor_total: form.valor_total,
+          data_compra: form.data_compra || new Date().toISOString(),
+          observacoes: form.observacoes,
+          filial_id: fornecedor.filial_id,
+          forma_pagamento: "dinheiro",
+          items: [],
+        } as never,
       });
+      if (error) throw new Error(error.message);
 
       toast.success("Compra registrada");
       setForm({ descricao: "", valor_total: 0, data_compra: "", observacoes: "" });
       setShowForm(false);
       refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao registrar compra");
     }
 
     setSaving(false);

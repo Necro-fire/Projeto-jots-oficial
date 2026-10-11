@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { createBoletoAlertas } from "@/hooks/useBoletoAlertas";
 import { useFilial } from "@/contexts/FilialContext";
 
 export interface DbProduct {
@@ -105,31 +104,70 @@ export interface DbEstoque {
 
 let channelCounter = 0;
 
-function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
+/** Janela padrão (dias) para tabelas de movimento. `null` carrega todo o histórico. */
+export const DEFAULT_HISTORY_DAYS = 90;
+
+interface RealtimeOptions {
+  /** Filtra por filial selecionada (padrão: sim). */
+  filterFilial?: boolean;
+  /** Só linhas com created_at dentro dos últimos N dias. `null`/ausente: sem janela. */
+  sinceDays?: number | null;
+}
+
+// Mesma ordenação usada na busca no servidor, aplicada ao cache quando chega um evento Realtime.
+function compareRows(table: string) {
+  const str = (v: unknown) => String(v ?? "");
+  return (a: any, b: any): number => {
+    if (table === "produtos") {
+      return str(a.model).localeCompare(str(b.model)) || str(a.id).localeCompare(str(b.id));
+    }
+    if (table === "clientes") {
+      return str(a.store_name).localeCompare(str(b.store_name)) || str(a.id).localeCompare(str(b.id));
+    }
+    if (table === "venda_items") {
+      return str(a.id).localeCompare(str(b.id));
+    }
+    return str(b.created_at).localeCompare(str(a.created_at)) || str(a.id).localeCompare(str(b.id));
+  };
+}
+
+function useRealtimeTable<T extends { id: string }>(table: string, options: RealtimeOptions = {}) {
+  const { filterFilial = true, sinceDays = null } = options;
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const { selectedFilial } = useFilial();
   const channelRef = useRef<any>(null);
 
+  const sinceIso = useCallback(() => {
+    if (sinceDays === null || sinceDays === undefined) return null;
+    return new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
+  }, [sinceDays]);
+
   const fetchData = useCallback(async () => {
-    // Supabase/PostgREST caps a single request at 1000 rows.
-    // Fetch in sequential pages so ALL records are loaded, no artificial limit.
+    // Supabase/PostgREST caps a single request at 1000 rows: busca em páginas sequenciais.
     const PAGE_SIZE = 1000;
     const all: T[] = [];
     let from = 0;
     let failed = false;
+    const since = sinceIso();
 
-    // Safety bound to avoid an infinite loop on unexpected responses
+    // Limite de segurança contra laço infinito em resposta inesperada
     for (let page = 0; page < 1000; page++) {
       let query = (supabase as any).from(table).select("*");
       if (filterFilial && selectedFilial !== "all") {
         query = query.eq("filial_id", selectedFilial);
       }
-      // Apply deterministic sorting (id tiebreaker keeps paging stable)
+      if (since) {
+        query = query.gte("created_at", since);
+      }
+      // Ordenação determinística (id desempata e mantém a paginação estável).
+      // venda_items não tem created_at.
       if (table === "produtos") {
         query = query.order("model", { ascending: true }).order("id", { ascending: true });
       } else if (table === "clientes") {
         query = query.order("store_name", { ascending: true }).order("id", { ascending: true });
+      } else if (table === "venda_items") {
+        query = query.order("id", { ascending: true });
       } else {
         query = query.order("created_at", { ascending: false }).order("id", { ascending: true });
       }
@@ -137,6 +175,7 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
 
       const { data: rows, error } = await query;
       if (error) {
+        console.error(`Erro ao carregar ${table}:`, error.message);
         failed = true;
         break;
       }
@@ -148,7 +187,30 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
 
     if (!failed) setData(all);
     setLoading(false);
-  }, [table, selectedFilial, filterFilial]);
+  }, [table, selectedFilial, filterFilial, sinceIso]);
+
+  // Aplica um evento Realtime ao cache, sem refazer a busca completa.
+  const applyChange = useCallback((payload: any) => {
+    const since = sinceIso();
+    const eventType = payload.eventType as "INSERT" | "UPDATE" | "DELETE";
+
+    setData((prev) => {
+      if (eventType === "DELETE") {
+        const id = payload.old?.id;
+        return id ? prev.filter((r) => r.id !== id) : prev;
+      }
+
+      const row = payload.new as T & { filial_id?: string; created_at?: string };
+      if (!row?.id) return prev;
+
+      const outOfFilial = filterFilial && selectedFilial !== "all" && row.filial_id !== selectedFilial;
+      const outOfWindow = !!since && !!row.created_at && row.created_at < since;
+      const without = prev.filter((r) => r.id !== row.id);
+      if (outOfFilial || outOfWindow) return without;
+
+      return [...without, row as T].sort(compareRows(table));
+    });
+  }, [table, filterFilial, selectedFilial, sinceIso]);
 
   useEffect(() => {
     fetchData();
@@ -159,12 +221,17 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
     }
 
     const topic = `${table}-rt-${++channelCounter}`;
+    let firstSubscribe = true;
     const channel = supabase
       .channel(topic)
-      .on("postgres_changes", { event: "*", schema: "public", table }, () => {
-        fetchData();
-      })
-      .subscribe();
+      .on("postgres_changes", { event: "*", schema: "public", table }, applyChange)
+      .subscribe((status: string) => {
+        // Ao reconectar, eventos podem ter sido perdidos: refaz a busca uma vez.
+        if (status === "SUBSCRIBED") {
+          if (firstSubscribe) firstSubscribe = false;
+          else fetchData();
+        }
+      });
 
     channelRef.current = channel;
     return () => {
@@ -173,7 +240,7 @@ function useRealtimeTable<T>(table: string, filterFilial: boolean = true) {
         channelRef.current = null;
       }
     };
-  }, [fetchData, table]);
+  }, [fetchData, applyChange, table]);
 
   return { data, loading, refetch: fetchData };
 }
@@ -186,8 +253,16 @@ export function useClients() {
   return useRealtimeTable<DbClient>("clientes");
 }
 
-export function useVendas() {
-  return useRealtimeTable<DbVenda>("vendas");
+/** Dias a carregar para cobrir o período escolhido na tela (mínimo: janela padrão). */
+export function historyDaysFor(from: Date): number {
+  const days = Math.ceil((Date.now() - from.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  return Math.max(DEFAULT_HISTORY_DAYS, days);
+}
+
+/** Vendas dos últimos `sinceDays` dias (padrão 90). `sinceDays: null` carrega todo o histórico. */
+export function useVendas(options: { sinceDays?: number | null } = {}) {
+  const { sinceDays = DEFAULT_HISTORY_DAYS } = options;
+  return useRealtimeTable<DbVenda>("vendas", { sinceDays });
 }
 
 export function useEstoque() {
@@ -195,7 +270,7 @@ export function useEstoque() {
 }
 
 export function useVendaItems() {
-  return useRealtimeTable<DbVendaItem>("venda_items", false);
+  return useRealtimeTable<DbVendaItem>("venda_items", { filterFilial: false });
 }
 
 export async function generateProductCodes(): Promise<{ code: string; barcode: string }> {
@@ -215,44 +290,18 @@ export async function findProductByHash(hash: string, filialId: string): Promise
   return data;
 }
 
+/**
+ * Soma `quantidade` ao saldo do produto na filial (transação no banco: trava a linha,
+ * não deixa o saldo ficar negativo e registra o histórico). Retorna o novo saldo.
+ */
 export async function upsertEstoque(produtoId: string, filialId: string, quantidade: number) {
-  // Try to find existing
-  const { data: existing } = await (supabase as any)
-    .from("estoque")
-    .select("id, quantidade")
-    .eq("produto_id", produtoId)
-    .eq("filial_id", filialId)
-    .maybeSingle();
-
-  if (existing) {
-    const newQty = existing.quantidade + quantidade;
-    const { error } = await (supabase as any)
-      .from("estoque")
-      .update({ quantidade: newQty })
-      .eq("id", existing.id);
-    if (error) throw new Error(error.message);
-
-    // Sync stock column on produtos
-    await (supabase as any)
-      .from("produtos")
-      .update({ stock: newQty })
-      .eq("id", produtoId);
-
-    return newQty;
-  } else {
-    const { error } = await (supabase as any)
-      .from("estoque")
-      .insert({ produto_id: produtoId, filial_id: filialId, quantidade });
-    if (error) throw new Error(error.message);
-
-    // Sync stock column on produtos
-    await (supabase as any)
-      .from("produtos")
-      .update({ stock: quantidade })
-      .eq("id", produtoId);
-
-    return quantidade;
-  }
+  const { data, error } = await supabase.rpc("ajustar_estoque", {
+    _produto_id: produtoId,
+    _filial_id: filialId,
+    _delta: quantidade,
+  });
+  if (error) throw new Error(error.message);
+  return data as number;
 }
 
 export interface PaymentSplit {
@@ -261,6 +310,11 @@ export interface PaymentSplit {
   finalAmount?: number;
 }
 
+/**
+ * Cria a venda numa única transação no banco (RPC `criar_venda`).
+ * O servidor valida preços, filial, caixa e estoque; qualquer falha desfaz tudo.
+ * Usuário, desconto e totais são determinados pelo banco, não por este payload.
+ */
 export async function createVenda(
   items: { produto_id: string; product_code: string; product_model: string; quantity: number; unit_price: number; custo_unitario?: number }[],
   clientId: string | null,
@@ -268,201 +322,49 @@ export async function createVenda(
   paymentMethod: string,
   origin: string,
   filialId: string,
-  discount: number = 0,
-  userId?: string,
-  userName?: string,
   paymentSplits?: PaymentSplit[],
-  finalTotalOverride?: number
+  finalTotal?: number,
+  consignadoIds?: string[]
 ) {
-  // Verify caixa is open
-  const { data: caixaAberto, error: caixaCheckError } = await (supabase as any)
-    .from("caixas")
-    .select("id")
-    .eq("filial_id", filialId)
-    .eq("status", "aberto")
-    .maybeSingle();
-
-  if (caixaCheckError) throw new Error(caixaCheckError.message);
-  if (!caixaAberto) throw new Error("O caixa precisa estar aberto para realizar vendas.");
-
-  const baseTotal = items.reduce((acc, i) => acc + i.unit_price * i.quantity, 0);
-  const total = Number.isFinite(finalTotalOverride) && finalTotalOverride !== undefined
-    ? finalTotalOverride
-    : baseTotal;
-
-  // Force reconciliation before validating stock
-  for (const item of items) {
-    const { error: reconcileError } = await (supabase as any).rpc("reconcile_inventory_for_product", {
-      _produto_id: item.produto_id,
-      _filial_id: filialId,
-    });
-
-    if (reconcileError) {
-      throw new Error(reconcileError.message);
-    }
-
-    const { data: estoque, error: estoqueError } = await (supabase as any)
-      .from("estoque")
-      .select("quantidade")
-      .eq("produto_id", item.produto_id)
-      .eq("filial_id", filialId)
-      .maybeSingle();
-
-    if (estoqueError) {
-      throw new Error(estoqueError.message);
-    }
-
-    const available = estoque?.quantidade ?? 0;
-    if (available < item.quantity) {
-      throw new Error(`Estoque insuficiente para ${item.product_model}. Disponível: ${available}`);
-    }
-  }
-
-  const isBoleto = paymentMethod.toLowerCase().includes("boleto");
-
-  const { data: venda, error: vendaError } = await (supabase as any)
-    .from("vendas")
-    .insert({
+  const { data, error } = await supabase.rpc("criar_venda", {
+    _payload: {
+      consignado_ids: consignadoIds && consignadoIds.length > 0 ? consignadoIds : undefined,
       client_id: clientId,
       client_name: clientName,
-      seller_name: "",
-      total,
-      discount,
       payment_method: paymentMethod,
       origin,
       filial_id: filialId,
-      status_boleto: isBoleto ? "pendente" : "",
-    })
-    .select()
-    .single();
+      total: finalTotal,
+      items: items.map(i => ({
+        produto_id: i.produto_id,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+      })),
+      splits: paymentSplits?.map(s => ({
+        method: s.method,
+        amount: s.amount,
+        final_amount: s.finalAmount ?? s.amount,
+      })),
+    },
+  });
 
-  if (vendaError || !venda) throw new Error(vendaError?.message || "Erro ao criar venda");
-
-  const isConsignado = origin === "consignado";
-  const vendaItems = items.map(i => ({
-    venda_id: venda.id,
-    produto_id: i.produto_id,
-    product_code: i.product_code,
-    product_model: i.product_model,
-    quantity: i.quantity,
-    unit_price: i.unit_price,
-    total: i.unit_price * i.quantity,
-    custo_unitario: i.custo_unitario ?? 0,
-    status: isConsignado ? "consignado" : "active",
-  }));
-
-  const { error: itemsError } = await (supabase as any)
-    .from("venda_items")
-    .insert(vendaItems);
-
-  if (itemsError) throw new Error(itemsError.message);
-
-  // Use already-validated caixaAberto from above
-  if (caixaAberto && userId) {
-    if (paymentSplits && paymentSplits.length > 0) {
-      // Register one caixa entry per split
-      for (const split of paymentSplits) {
-        await (supabase as any).from("caixa_movimentacoes").insert({
-          caixa_id: caixaAberto.id,
-          tipo: "venda",
-          valor: split.finalAmount ?? split.amount,
-          forma_pagamento: split.method,
-          descricao: `Venda ${venda.sale_code || '#' + venda.number} — ${clientName || "Cliente avulso"} (${split.method})`,
-          venda_id: venda.id,
-          usuario_id: userId,
-          usuario_nome: userName || "",
-        });
-      }
-    } else {
-      await (supabase as any).from("caixa_movimentacoes").insert({
-        caixa_id: caixaAberto.id,
-        tipo: "venda",
-        valor: total,
-        forma_pagamento: paymentMethod,
-        descricao: `Venda ${venda.sale_code || '#' + venda.number} — ${clientName || "Cliente avulso"}`,
-        venda_id: venda.id,
-        usuario_id: userId,
-        usuario_nome: userName || "",
-      });
-    }
-  }
-
-  // If consignado, create consignados records (stock already deducted by reduce_stock_on_sale trigger)
-  if (isConsignado) {
-    try {
-      for (const item of items) {
-        const { data: csg } = await (supabase as any).from("consignados").insert({
-          produto_id: item.produto_id,
-          cliente_id: clientId,
-          filial_id: filialId,
-          quantidade: item.quantity,
-          valor_unitario: item.unit_price,
-          valor_total: item.unit_price * item.quantity,
-          vendedor_nome: userName || "",
-          venda_id: venda.id,
-        }).select().single();
-
-        // Log creation history
-        if (csg) {
-          await (supabase as any).from("consignado_historico").insert({
-            consignado_id: csg.id,
-            acao: "criado",
-            detalhes: {
-              origem: "pdv",
-              venda_id: venda.id,
-              quantidade: item.quantity,
-              valor_unitario: item.unit_price,
-            },
-            usuario_id: userId,
-            usuario_nome: userName || "",
-          });
-        }
-      }
-    } catch (e) {
-      console.error("Erro ao criar registros de consignação:", e);
-    }
-  }
-
-  // Auto-create boleto alerts
-  try {
-    // Check main payment method
-    const mainIsBoleto = (!paymentSplits || paymentSplits.length === 0) && paymentMethod.toLowerCase().includes("boleto");
-    if (mainIsBoleto) {
-      const boletoMatch = paymentMethod.match(/(\d+)x\/(\d+)d/);
-      const parcelas = boletoMatch ? parseInt(boletoMatch[1]) : 1;
-      const intervalo = boletoMatch ? parseInt(boletoMatch[2]) : 30;
-      await createBoletoAlertas(venda.id, filialId, total, parcelas, intervalo);
-    }
-
-    // Check splits for boleto portions
-    if (paymentSplits && paymentSplits.length > 0) {
-      for (const split of paymentSplits) {
-        if (split.method.toLowerCase().includes("boleto")) {
-          const boletoMatch = split.method.match(/(\d+)x\/(\d+)d/);
-          const parcelas = boletoMatch ? parseInt(boletoMatch[1]) : 1;
-          const intervalo = boletoMatch ? parseInt(boletoMatch[2]) : 30;
-          await createBoletoAlertas(venda.id, filialId, split.amount, parcelas, intervalo);
-        }
-      }
-    }
-  } catch (e) {
-    console.error("Erro ao criar alertas de boleto:", e);
-  }
-
-  return venda;
+  if (error) throw new Error(error.message);
+  return data as unknown as DbVenda;
 }
 
-export async function cancelarVenda(
-  vendaId: string,
-  motivo: string,
-  userId: string,
-  userName: string
-) {
-  const { error } = await (supabase as any).rpc("cancelar_venda", {
+export async function cancelarVenda(vendaId: string, motivo: string) {
+  const { error } = await supabase.rpc("cancelar_venda", {
     _venda_id: vendaId,
     _motivo: motivo,
-    _user_id: userId,
-    _user_name: userName,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Desfaz o cancelamento da venda inteira: devolve itens, baixa estoque e refaz o lançamento no caixa. */
+export async function reverterCancelamentoVenda(vendaId: string, motivo: string) {
+  const { error } = await supabase.rpc("reverter_cancelamento_venda", {
+    _venda_id: vendaId,
+    _motivo: motivo,
   });
   if (error) throw new Error(error.message);
 }

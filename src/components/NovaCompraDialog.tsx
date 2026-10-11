@@ -196,55 +196,6 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
   const valorTotal = items.reduce((sum, i) => sum + i.total, 0);
   const pendingCount = items.filter(i => i.pending).length;
 
-  /** Vincula um produto a um fornecedor (idempotente). */
-  const vincularProdutoFornecedor = async (produtoId: string, fId: string) => {
-    const { data: vincExistente } = await (supabase as any)
-      .from("fornecedor_produtos")
-      .select("id")
-      .eq("fornecedor_id", fId)
-      .eq("produto_id", produtoId)
-      .maybeSingle();
-
-    if (!vincExistente) {
-      await (supabase as any)
-        .from("fornecedor_produtos")
-        .insert({ fornecedor_id: fId, produto_id: produtoId });
-    }
-  };
-
-  /** Atualiza/cria estoque do produto na filial e espelha em produtos.stock. */
-  const atualizarEstoque = async (produtoId: string, filialId: string, deltaQtd: number) => {
-    await (supabase as any).rpc("reconcile_inventory_for_product", {
-      _produto_id: produtoId,
-      _filial_id: filialId,
-    });
-
-    const { data: estoqueRow } = await (supabase as any)
-      .from("estoque")
-      .select("id, quantidade")
-      .eq("produto_id", produtoId)
-      .eq("filial_id", filialId)
-      .maybeSingle();
-
-    const novaQtd = (estoqueRow?.quantidade ?? 0) + deltaQtd;
-
-    if (estoqueRow?.id) {
-      await (supabase as any)
-        .from("estoque")
-        .update({ quantidade: novaQtd })
-        .eq("id", estoqueRow.id);
-    } else {
-      await (supabase as any)
-        .from("estoque")
-        .insert({ produto_id: produtoId, filial_id: filialId, quantidade: novaQtd });
-    }
-
-    await (supabase as any)
-      .from("produtos")
-      .update({ stock: novaQtd })
-      .eq("id", produtoId);
-  };
-
   const handleSave = async () => {
     if (!fornecedorId) {
       toast.error("Selecione um fornecedor");
@@ -266,73 +217,28 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
 
     setSaving(true);
     try {
-      // Verifica caixa aberto
-      const { data: caixaAberto } = await (supabase as any)
-        .from("caixas")
-        .select("id")
-        .eq("filial_id", compraFilialId)
-        .eq("status", "aberto")
-        .maybeSingle();
+      const existentes = items.filter(i => !i.pending && i.produto_id);
 
-      if (!caixaAberto) {
-        toast.error("O caixa da filial precisa estar aberto para registrar compras.");
-        setSaving(false);
-        return;
-      }
-
-      // Cria compra
-      const { data: compra, error: compraError } = await (supabase as any)
-        .from("compras_fornecedor")
-        .insert({
+      // UMA transação no banco: compra, itens, entrada de estoque, vínculo com o fornecedor
+      // e despesa no caixa aberto da filial. Se algo falhar, nada fica gravado.
+      const { data: compraRes, error: compraError } = await supabase.rpc("registrar_compra", {
+        _payload: {
           fornecedor_id: fornecedorId,
           descricao,
           valor_total: valorTotal,
           data_compra: dataCompra || new Date().toISOString(),
           observacoes,
           filial_id: compraFilialId,
-          usuario_id: profile.id,
-          usuario_nome: profile.nome,
-        })
-        .select("id")
-        .single();
-
-      if (compraError) throw compraError;
-
-      // Itens existentes: insere compra_items, atualiza estoque e vincula ao fornecedor
-      const existentes = items.filter(i => !i.pending && i.produto_id);
-      if (existentes.length > 0) {
-        const itemsToInsert = existentes.map(item => ({
-          compra_id: compra.id,
-          produto_id: item.produto_id!,
-          produto_code: item.produto_code,
-          produto_model: item.produto_model,
-          quantidade: item.quantidade,
-          valor_unitario: item.valor_unitario,
-          total: item.total,
-        }));
-
-        const { error: itemsError } = await (supabase as any)
-          .from("compra_items")
-          .insert(itemsToInsert);
-        if (itemsError) throw itemsError;
-
-        for (const item of existentes) {
-          await atualizarEstoque(item.produto_id!, compraFilialId, item.quantidade);
-          await vincularProdutoFornecedor(item.produto_id!, fornecedorId);
-        }
-      }
-
-      // Despesa no caixa
-      const fornNome = selectedFornecedor?.nome || "";
-      await (supabase as any).from("caixa_movimentacoes").insert({
-        caixa_id: caixaAberto.id,
-        tipo: "despesa",
-        valor: valorTotal,
-        forma_pagamento: formaPagamento,
-        descricao: `Compra Fornecedor: ${fornNome}${descricao ? " — " + descricao : ""}`,
-        usuario_id: profile.id,
-        usuario_nome: profile.nome,
+          forma_pagamento: formaPagamento,
+          items: existentes.map(item => ({
+            produto_id: item.produto_id,
+            quantidade: item.quantidade,
+            valor_unitario: item.valor_unitario,
+          })),
+        } as never,
       });
+      if (compraError) throw new Error(compraError.message);
+      const compra = compraRes as unknown as { id: string; codigo: string };
 
       // Pendentes: enfileira para cadastro
       const pendentes = items.filter(i => i.pending);
@@ -375,29 +281,21 @@ export function NovaCompraDialog({ open, onOpenChange, onSuccess, fornecedorIdPr
         if (prodNaFilial?.id) produtoCompraId = prodNaFilial.id;
       }
 
-      // Buscar code/model real
-      const { data: prodInfo } = await (supabase as any)
-        .from("produtos")
-        .select("code, model")
-        .eq("id", produtoCompraId)
-        .maybeSingle();
-
-      // Insere compra_item
-      await (supabase as any).from("compra_items").insert({
-        compra_id: compraIdSalva,
-        produto_id: produtoCompraId,
-        produto_code: prodInfo?.code || "",
-        produto_model: prodInfo?.model || currentPending.produto_model,
-        quantidade: currentPending.quantidade,
-        valor_unitario: currentPending.valor_unitario,
-        total: currentPending.total,
+      // Uma transação no banco: item da compra + vínculo com o fornecedor.
+      // O saldo já foi criado pelo cadastro do produto (não dobra o estoque).
+      const { error: itemError } = await supabase.rpc("registrar_item_compra_pendente", {
+        _compra_id: compraIdSalva,
+        _produto_id: produtoCompraId,
+        _quantidade: currentPending.quantidade,
+        _valor_unitario: currentPending.valor_unitario,
       });
+      if (itemError) throw new Error(itemError.message);
 
-      // O ProductFormDialog já criou o estoque com a quantidade preset, então
-      // NÃO chamamos atualizarEstoque aqui (evita dobrar).
-      // Apenas vincula o(s) produto(s) ao fornecedor.
-      for (const pid of produtoIds) {
-        await vincularProdutoFornecedor(pid, fornecedorId);
+      // Demais produtos criados (outras filiais, fornecedor global): só o vínculo
+      for (const pid of produtoIds.filter(id => id !== produtoCompraId)) {
+        await supabase
+          .from("fornecedor_produtos")
+          .upsert({ fornecedor_id: fornecedorId, produto_id: pid }, { onConflict: "fornecedor_id,produto_id", ignoreDuplicates: true });
       }
 
       // Próximo da fila

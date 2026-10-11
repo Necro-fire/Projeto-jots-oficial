@@ -123,6 +123,7 @@ export function useComprasFornecedor(fornecedorId: string | null) {
       .from("compras_fornecedor")
       .select("*")
       .eq("fornecedor_id", fornecedorId)
+      .neq("status", "cancelada")
       .order("data_compra", { ascending: false });
     setData(rows || []);
     setLoading(false);

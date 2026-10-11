@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FilialSelector } from "@/components/FilialSelector";
-import { useConsignados, updateConsignadoStatus, type Consignado } from "@/hooks/useConsignados";
+import { useConsignados, updateConsignadoStatus, excluirConsignado, type Consignado } from "@/hooks/useConsignados";
 import { useClients } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFilial } from "@/contexts/FilialContext";
@@ -141,26 +141,8 @@ export default function ProdutosConsignados() {
   const handleDelete = async () => {
     if (!deletingItem) return;
     try {
-      await (supabase as any).from("consignado_historico").delete().eq("consignado_id", deletingItem.id);
-      await (supabase as any).from("consignado_trocas").delete().eq("consignado_original_id", deletingItem.id);
-      await (supabase as any).from("consignado_trocas").delete().eq("consignado_novo_id", deletingItem.id);
-      const { error } = await (supabase as any).from("consignados").delete().eq("id", deletingItem.id);
-      if (error) throw error;
-
-      if (deletingItem.status === "consignado") {
-        const { data: estoque } = await (supabase as any)
-          .from("estoque")
-          .select("id, quantidade")
-          .eq("produto_id", deletingItem.produto_id)
-          .eq("filial_id", deletingItem.filial_id)
-          .maybeSingle();
-
-        if (estoque) {
-          const newQty = estoque.quantidade + deletingItem.quantidade;
-          await (supabase as any).from("estoque").update({ quantidade: newQty }).eq("id", estoque.id);
-          await (supabase as any).from("produtos").update({ stock: newQty }).eq("id", deletingItem.produto_id);
-        }
-      }
+      // Uma transação no banco: devolve o estoque (se ainda em aberto) e remove o consignado e seu histórico.
+      await excluirConsignado(deletingItem.id);
 
       toast.success("Consignado excluído!");
     } catch (err: any) {

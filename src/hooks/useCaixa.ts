@@ -22,6 +22,7 @@ export interface DbCaixa {
 
 export interface DbCaixaMovimentacao {
   id: string;
+  estorno_de?: string | null;
   caixa_id: string;
   tipo: string;
   valor: number;
@@ -76,71 +77,114 @@ export function useMovimentacoes(caixaId: string | null) {
   return { movs, loading, refetch: fetch };
 }
 
-export async function abrirCaixa(filialId: string, valorAbertura: number, userId: string, userName: string) {
-  // Check if there's already an open caixa for this filial
-  const { data: existing } = await (supabase as any)
-    .from("caixas").select("id").eq("filial_id", filialId).eq("status", "aberto").maybeSingle();
-  if (existing) throw new Error("Já existe um caixa aberto para esta filial.");
+/** Caixa aberto da filial, em tempo real. `null` = fechado (estado real do banco). */
+export function useCaixaAberto(filialId: string | null) {
+  const [caixa, setCaixa] = useState<DbCaixa | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const { data, error } = await (supabase as any).from("caixas").insert({
-    filial_id: filialId,
-    valor_abertura: valorAbertura,
-    usuario_abertura_id: userId,
-    usuario_abertura_nome: userName,
-  }).select().single();
-  if (error) throw new Error(error.message);
-  return data;
+  const fetchCaixa = useCallback(async () => {
+    if (!filialId || filialId === "all") {
+      setCaixa(null);
+      setLoading(false);
+      return;
+    }
+    // limit(1) em vez de maybeSingle(): nunca falha por haver mais de uma linha.
+    const { data, error } = await (supabase as any)
+      .from("caixas")
+      .select("*")
+      .eq("filial_id", filialId)
+      .eq("status", "aberto")
+      .order("aberto_em", { ascending: false })
+      .limit(1);
+    if (!error) setCaixa((data && data[0]) || null);
+    setLoading(false);
+  }, [filialId]);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchCaixa();
+    const ch = supabase
+      .channel(`caixa-aberto-${filialId ?? "none"}-${Math.random().toString(36).slice(2, 7)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "caixas" }, () => fetchCaixa())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [fetchCaixa, filialId]);
+
+  return { caixa, loading, refetch: fetchCaixa };
 }
 
-export async function fecharCaixa(
-  caixaId: string, valorInformado: number, valorEsperado: number,
-  userId: string, userName: string, obs: string
-) {
-  const diferenca = valorInformado - valorEsperado;
-  const { error } = await (supabase as any).from("caixas").update({
-    status: "fechado",
-    valor_fechamento_informado: valorInformado,
-    valor_fechamento_esperado: valorEsperado,
-    diferenca,
-    usuario_fechamento_id: userId,
-    usuario_fechamento_nome: userName,
-    fechado_em: new Date().toISOString(),
-    observacoes_fechamento: obs,
-  }).eq("id", caixaId);
+// As operações abaixo são transações no banco: usuário, permissão, filial e saldo
+// são determinados lá (nunca pelo navegador).
+
+export async function abrirCaixa(filialId: string, valorAbertura: number) {
+  const { data, error } = await supabase.rpc("abrir_caixa", {
+    _filial_id: filialId,
+    _valor_abertura: valorAbertura,
+  });
   if (error) throw new Error(error.message);
+  return data as string;
+}
+
+/** O valor esperado é calculado no banco, a partir das movimentações do caixa. */
+export async function fecharCaixa(caixaId: string, valorInformado: number, obs: string) {
+  const { data, error } = await supabase.rpc("fechar_caixa", {
+    _caixa_id: caixaId,
+    _valor_informado: valorInformado,
+    _obs: obs,
+  });
+  if (error) throw new Error(error.message);
+  return data as unknown as { esperado: number; informado: number; diferenca: number };
 }
 
 export async function addMovimentacao(
-  caixaId: string, tipo: string, valor: number, formaPagamento: string,
-  descricao: string, userId: string, userName: string, vendaId?: string
+  caixaId: string, tipo: "sangria" | "reforco" | "despesa", valor: number,
+  formaPagamento: string, descricao: string
 ) {
-  const { error } = await (supabase as any).from("caixa_movimentacoes").insert({
-    caixa_id: caixaId,
-    tipo,
-    valor,
-    forma_pagamento: formaPagamento,
-    descricao,
-    usuario_id: userId,
-    usuario_nome: userName,
-    venda_id: vendaId || null,
+  const { data, error } = await supabase.rpc("registrar_movimentacao_caixa", {
+    _caixa_id: caixaId,
+    _tipo: tipo,
+    _valor: valor,
+    _forma_pagamento: formaPagamento,
+    _descricao: descricao,
   });
   if (error) throw new Error(error.message);
+  return data as string;
 }
 
+/** Estorna (contra-lançamento) uma sangria, reforço ou despesa lançada por engano. */
+export async function estornarMovimentacao(movId: string, motivo: string) {
+  const { data, error } = await supabase.rpc("estornar_movimentacao_caixa", {
+    _mov_id: movId,
+    _motivo: motivo,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+/**
+ * Remove um caixa do histórico. Recusa se houver vendas vinculadas
+ * (apagar o caixa deixaria a venda sem lançamento financeiro); o banco também impede.
+ */
 export async function removeCaixaHistorico(caixaId: string) {
-  // First delete all movimentações
+  const { count, error: countError } = await (supabase as any)
+    .from("caixa_movimentacoes")
+    .select("id", { count: "exact", head: true })
+    .eq("caixa_id", caixaId)
+    .not("venda_id", "is", null);
+  if (countError) throw new Error(countError.message);
+  if ((count ?? 0) > 0) {
+    throw new Error("Este caixa tem vendas vinculadas e não pode ser excluído. Para corrigir uma venda, cancele-a ou desfaça o cancelamento.");
+  }
+
   const { error: movError } = await (supabase as any)
     .from("caixa_movimentacoes")
     .delete()
     .eq("caixa_id", caixaId);
-
   if (movError) throw new Error(movError.message);
 
-  // Then delete the caixa record itself
   const { error: caixaError } = await (supabase as any)
     .from("caixas")
     .delete()
     .eq("id", caixaId);
-
   if (caixaError) throw new Error(caixaError.message);
 }

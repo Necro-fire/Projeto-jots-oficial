@@ -1,6 +1,6 @@
 import { Package, ShoppingCart, TrendingUp, Users, DollarSign } from "lucide-react";
 import { FilialSelector } from "@/components/FilialSelector";
-import { useProducts, useClients, useVendas, useVendaItems } from "@/hooks/useSupabaseData";
+import { useProducts, useClients, useVendas, useVendaItems, historyDaysFor } from "@/hooks/useSupabaseData";
 import { useStockAlerts } from "@/hooks/useStockAlerts";
 import { useFilial } from "@/contexts/FilialContext";
 import { DateRangeFilter, useDateRangeFilter, filterByDateRange } from "@/components/DateRangeFilter";
@@ -15,10 +15,10 @@ export default function Dashboard() {
   const { data: products, loading: loadingProducts } = useProducts();
   const { data: alertConfigs } = useStockAlerts();
   const { selectedFilial, filiais } = useFilial();
-  const { data: sales, loading: loadingSales } = useVendas();
+  const { preset, range, onChange: onDateChange } = useDateRangeFilter();
+  const { data: sales, loading: loadingSales } = useVendas({ sinceDays: historyDaysFor(range.from) });
   const { data: vendaItems } = useVendaItems();
   const { data: clients } = useClients();
-  const { preset, range, onChange: onDateChange } = useDateRangeFilter();
 
   const isLoading = loadingProducts || loadingSales;
 

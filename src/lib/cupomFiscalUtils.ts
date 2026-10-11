@@ -15,6 +15,25 @@ function calcularTotaisCupom(subtotalLiquido: number, desconto: number, total: n
 const toC = (v: number) => Math.round((Number(v) || 0) * 100);
 
 /**
+ * Regra única do desconto na nota: usa o preço de tabela gravado em cada item
+ * (venda_items.preco_tabela). Desconto = soma((preco_tabela - preço vendido) x quantidade)
+ * dos itens ATIVOS. Vendas antigas (sem preço de tabela) mantêm o desconto gravado na venda.
+ */
+export function calcularDescontoDosItens(
+  itensAtivos: { quantity: number; unit_price: number; preco_tabela?: number | null }[],
+  descontoGravadoNaVenda: number,
+): number {
+  if (itensAtivos.length === 0) return Number(descontoGravadoNaVenda) || 0;
+  const todosComTabela = itensAtivos.every((i) => i.preco_tabela !== null && i.preco_tabela !== undefined);
+  if (!todosComTabela) return Number(descontoGravadoNaVenda) || 0;
+  const cents = itensAtivos.reduce(
+    (s, i) => s + Math.max(0, toC(Number(i.preco_tabela)) - toC(Number(i.unit_price))) * Number(i.quantity),
+    0,
+  );
+  return cents / 100;
+}
+
+/**
  * Monta uma forma de pagamento a partir do valor FINAL registrado (sem recalcular o total).
  * Parcelas e juros são derivados do próprio pagamento; a soma das parcelas é sempre igual ao valor registrado.
  */
@@ -72,8 +91,8 @@ export async function buildCupomFromVendaId(vendaId: string): Promise<CupomFisca
   const venda = vendaRes.data;
   if (!venda) throw new Error("Venda não encontrada");
 
-  const items = (itemsRes.data || [])
-    .filter((item: any) => item.status !== "cancelado")
+  const itensAtivosRaw = (itemsRes.data || []).filter((item: any) => item.status !== "cancelado");
+  const items = itensAtivosRaw
     .map((item: any) => ({
       codigo: item.product_code || "",
       descricao: item.product_model || "",
@@ -95,7 +114,7 @@ export async function buildCupomFromVendaId(vendaId: string): Promise<CupomFisca
     .order("created_at", { ascending: true });
 
   const operador = movData?.[0]?.usuario_nome || venda.seller_name || "";
-  const desconto = Number(venda.discount) || 0;
+  const desconto = calcularDescontoDosItens(itensAtivosRaw, Number(venda.discount) || 0);
   const totalC = toC(venda.total);
   const movs = (movData || []) as any[];
 
