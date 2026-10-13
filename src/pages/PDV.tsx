@@ -12,6 +12,7 @@ import { useFilial } from "@/contexts/FilialContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { FilialSelector } from "@/components/FilialSelector";
 import { useProducts, useClients, createVenda, type DbProduct } from "@/hooks/useSupabaseData";
+import { useProgressiveList } from "@/hooks/useProgressiveList";
 import { useDescontosAtacado, type DescontoAtacado } from "@/hooks/useDescontosAtacado";
 import { createConsignado } from "@/hooks/useConsignados";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -298,6 +299,12 @@ export default function PDV() {
     if (!search) return active;
     return active.filter(p => matchesProductSearch(p, search));
   }, [search, products, cartQtyMap]);
+
+  // Lista montada aos poucos; busca por código de barras continua usando todos os produtos.
+  const { visible: visibleProducts, hasMore, sentinelRef } = useProgressiveList(
+    filteredProducts,
+    [selectedFilial, search, consignacaoMode],
+  );
 
   const addToCart = useCallback((product: DbProduct) => {
     setCart(prev => {
@@ -721,16 +728,17 @@ export default function PDV() {
           </div>
           <div className="flex-1 overflow-auto p-4 pt-2">
             {filteredProducts.length > 0 ? (
+              <>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                {filteredProducts.map(product => (
-                  <div key={product.id} className="rounded-md shadow-subtle bg-card p-3 text-left hover:shadow-card transition-all active:scale-[0.98] group">
+                {visibleProducts.map(product => (
+                  <div key={product.id} className="rounded-md shadow-subtle bg-card p-3 text-left hover:shadow-card transition-all active:scale-[0.98] group [content-visibility:auto] [contain-intrinsic-size:auto_200px]">
                     <div
                       className="aspect-[3/2] rounded-sm bg-secondary flex items-center justify-center overflow-hidden relative"
                       onClick={() => addToCart(product)}
                     >
                       {product.image_url ? (
                         <>
-                          <img src={product.image_url} alt={product.model || product.referencia} className="w-full h-full object-cover" />
+                          <img src={product.image_url} alt={product.model || product.referencia} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -758,6 +766,8 @@ export default function PDV() {
                   </div>
                 ))}
               </div>
+              {hasMore && <div ref={sentinelRef} className="h-10" aria-hidden="true" />}
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <ShoppingCart className="h-12 w-12 mb-3 opacity-30" />

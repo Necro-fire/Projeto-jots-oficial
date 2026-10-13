@@ -1,6 +1,8 @@
 import { Package, ShoppingCart, TrendingUp, Users, DollarSign } from "lucide-react";
 import { FilialSelector } from "@/components/FilialSelector";
-import { useProducts, useClients, useVendas, useVendaItems, historyDaysFor } from "@/hooks/useSupabaseData";
+import { useProducts, useVendas, historyDaysFor } from "@/hooks/useSupabaseData";
+import { useItensLucro } from "@/hooks/useItensLucro";
+import { calcularLucro } from "@/lib/lucro";
 import { useStockAlerts } from "@/hooks/useStockAlerts";
 import { useFilial } from "@/contexts/FilialContext";
 import { DateRangeFilter, useDateRangeFilter, filterByDateRange } from "@/components/DateRangeFilter";
@@ -17,24 +19,18 @@ export default function Dashboard() {
   const { selectedFilial, filiais } = useFilial();
   const { preset, range, onChange: onDateChange } = useDateRangeFilter();
   const { data: sales, loading: loadingSales } = useVendas({ sinceDays: historyDaysFor(range.from) });
-  const { data: vendaItems } = useVendaItems();
-  const { data: clients } = useClients();
 
   const isLoading = loadingProducts || loadingSales;
 
   const filteredSales = filterByDateRange(sales, range);
-  const filteredClients = filterByDateRange(clients, range);
 
   const activeSales = filteredSales.filter(s => s.status !== "cancelada");
   const salesTotalValue = activeSales.reduce((acc, s) => acc + Number(s.total), 0);
 
-  // Calculate profit from venda_items linked to active sales
+  // Lucro: só os itens do período/filial são buscados; recalcula quando as vendas mudam.
+  const vendaItems = useItensLucro(range, `${activeSales.length}:${salesTotalValue}`, !loadingSales);
   const activeSaleIds = new Set(activeSales.map(s => s.id));
-  const activeItems = vendaItems.filter(vi => activeSaleIds.has(vi.venda_id));
-  const totalProfit = activeItems.reduce((acc, vi) => {
-    const custo = Number(vi.custo_unitario) || 0;
-    return acc + (Number(vi.unit_price) - custo) * vi.quantity;
-  }, 0);
+  const totalProfit = calcularLucro(vendaItems, activeSaleIds);
   const avgProfitPerSale = activeSales.length > 0 ? totalProfit / activeSales.length : 0;
 
   const activeProducts = products.filter(p => p.status !== "inativo");

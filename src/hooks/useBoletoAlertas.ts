@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFilial } from "@/contexts/FilialContext";
 
@@ -18,54 +18,100 @@ export interface BoletoAlerta {
   client_name?: string;
 }
 
+/** Espera para agrupar eventos seguidos (um boleto de 12 parcelas gera 12 eventos) em uma busca só. */
+const REFETCH_DEBOUNCE_MS = 400;
+/** Só refaz a busca ao voltar para a aba se ela ficou escondida por mais que isso. */
+const VISIBILITY_REFETCH_AFTER_MS = 60_000;
+const PAGE_SIZE = 1000;
+
 export function useBoletoAlertas() {
   const [alertas, setAlertas] = useState<BoletoAlerta[]>([]);
   const [loading, setLoading] = useState(true);
   const { selectedFilial } = useFilial();
+  const fetchSeq = useRef(0);
 
   const fetchAlertas = useCallback(async () => {
-    let query = (supabase as any)
-      .from("boleto_alertas")
-      .select("*, vendas(number, client_name)")
-      .order("data_vencimento", { ascending: true });
+    // Uma resposta antiga (outra filial, evento anterior) não pode sobrescrever a mais nova.
+    const seq = ++fetchSeq.current;
+    const all: any[] = [];
 
-    if (selectedFilial !== "all") {
-      query = query.eq("filial_id", selectedFilial);
+    // PostgREST corta em 1000 linhas: busca em páginas para não perder parcelas futuras.
+    for (let page = 0; page < 1000; page++) {
+      let query = (supabase as any)
+        .from("boleto_alertas")
+        .select("*, vendas(number, client_name)")
+        .order("data_vencimento", { ascending: true })
+        .order("id", { ascending: true })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      if (selectedFilial !== "all") {
+        query = query.eq("filial_id", selectedFilial);
+      }
+
+      const { data, error } = await query;
+      if (error || !data) {
+        if (seq === fetchSeq.current) setLoading(false);
+        return;
+      }
+      all.push(...(data as any[]));
+      if ((data as any[]).length < PAGE_SIZE) break;
     }
 
-    const { data, error } = await query;
-    if (!error && data) {
-      const mapped = (data as any[]).map((row) => ({
+    if (seq !== fetchSeq.current) return;
+    setAlertas(
+      all.map((row) => ({
         ...row,
         venda_number: row.vendas?.number,
         client_name: row.vendas?.client_name || "Cliente avulso",
-      }));
-      setAlertas(mapped);
-    }
+      })),
+    );
     setLoading(false);
   }, [selectedFilial]);
 
   useEffect(() => {
+    const seqCounter = fetchSeq;
     fetchAlertas();
 
-    // Realtime subscription
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refetchSoon = () => {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        fetchAlertas();
+      }, REFETCH_DEBOUNCE_MS);
+    };
+
+    // Boletos de venda nova chegam como INSERT em boleto_alertas (criados na mesma transação da venda).
+    let firstSubscribe = true;
     const channel = supabase
       .channel("boleto-alertas-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "boleto_alertas" }, () => {
-        fetchAlertas();
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "vendas" }, () => {
-        // Refetch when new sale is created (may include boleto)
-        setTimeout(() => fetchAlertas(), 1500);
-      })
-      .subscribe();
+      .on("postgres_changes", { event: "*", schema: "public", table: "boleto_alertas" }, refetchSoon)
+      .subscribe((status: string) => {
+        // Ao reconectar, eventos podem ter sido perdidos.
+        if (status === "SUBSCRIBED") {
+          if (firstSubscribe) firstSubscribe = false;
+          else refetchSoon();
+        }
+      });
 
-    // Polling every 60s for time-based urgency changes
-    const interval = window.setInterval(fetchAlertas, 60_000);
+    // A classificação por vencimento é recalculada na tela (ver BellNotifications);
+    // aqui só se atualiza após a aba ficar escondida por um tempo, quando eventos podem ter sido perdidos.
+    let hiddenAt: number | null = null;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+      } else if (hiddenAt !== null && Date.now() - hiddenAt > VISIBILITY_REFETCH_AFTER_MS) {
+        hiddenAt = null;
+        refetchSoon();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
+      if (timer !== null) clearTimeout(timer);
+      seqCounter.current++;
       supabase.removeChannel(channel);
-      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [fetchAlertas]);
 

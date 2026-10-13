@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, FileText, Check, Clock, ChevronDown, ChevronUp, AlertTriangle, CalendarClock, Ban, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,13 @@ export function BellNotifications() {
   const [showFuturos, setShowFuturos] = useState(false);
   const [showCancelados, setShowCancelados] = useState(false);
   const [showSecurity, setShowSecurity] = useState(true);
+
+  // A classificação por vencimento depende da hora atual: reavalia a cada minuto, sem ir ao servidor.
+  const [, setMinuteTick] = useState(0);
+  useEffect(() => {
+    const interval = window.setInterval(() => setMinuteTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const pendentes = alertas.filter((a) => classifyBoleto(a) === "pendente");
   const gerados = alertas.filter((a) => classifyBoleto(a) === "gerado");

@@ -1,7 +1,17 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { Suspense } from "react";
 import { Outlet } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { BellNotifications } from "@/components/BellNotifications";
+
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center py-24 text-muted-foreground" role="status" aria-label="Carregando">
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>
+  );
+}
 
 export function AppLayout() {
   return (
@@ -14,7 +24,9 @@ export function AppLayout() {
             <BellNotifications />
           </header>
           <main className="flex-1 overflow-auto">
-            <Outlet />
+            <Suspense fallback={<PageFallback />}>
+              <Outlet />
+            </Suspense>
           </main>
         </div>
       </div>

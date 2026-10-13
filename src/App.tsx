@@ -7,28 +7,31 @@ import { AppLayout } from "@/components/AppLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { FilialProvider } from "@/contexts/FilialContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import Dashboard from "./pages/Dashboard";
-import PDV from "./pages/PDV";
-import Produtos from "./pages/Produtos";
-import Clientes from "./pages/Clientes";
-import Funcionarios from "./pages/Funcionarios";
-import Vendas from "./pages/Vendas";
-import Estoque from "./pages/Estoque";
-import Caixa from "./pages/Caixa";
-import Permissoes from "./pages/Permissoes";
-import Relatorios from "./pages/Relatorios";
-import NotasFiscais from "./pages/NotasFiscais";
-import EmitirNF from "./pages/EmitirNF";
-import ConfiguracaoFiscal from "./pages/ConfiguracaoFiscal";
-import Empresas from "./pages/Empresas";
-import CertificadoDigital from "./pages/CertificadoDigital";
-import Cargos from "./pages/Cargos";
-import TrafegoFiliais from "./pages/TrafegoFiliais";
-import ProdutosConsignados from "./pages/ProdutosConsignados";
-import Fornecedores from "./pages/Fornecedores";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+
+// Cada tela vira um arquivo próprio, baixado só quando a rota é aberta.
+const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
+const PDV = lazyWithRetry(() => import("./pages/PDV"));
+const Produtos = lazyWithRetry(() => import("./pages/Produtos"));
+const Clientes = lazyWithRetry(() => import("./pages/Clientes"));
+const Funcionarios = lazyWithRetry(() => import("./pages/Funcionarios"));
+const Vendas = lazyWithRetry(() => import("./pages/Vendas"));
+const Estoque = lazyWithRetry(() => import("./pages/Estoque"));
+const Caixa = lazyWithRetry(() => import("./pages/Caixa"));
+const Permissoes = lazyWithRetry(() => import("./pages/Permissoes"));
+const Relatorios = lazyWithRetry(() => import("./pages/Relatorios"));
+const NotasFiscais = lazyWithRetry(() => import("./pages/NotasFiscais"));
+const EmitirNF = lazyWithRetry(() => import("./pages/EmitirNF"));
+const ConfiguracaoFiscal = lazyWithRetry(() => import("./pages/ConfiguracaoFiscal"));
+const Empresas = lazyWithRetry(() => import("./pages/Empresas"));
+const CertificadoDigital = lazyWithRetry(() => import("./pages/CertificadoDigital"));
+const Cargos = lazyWithRetry(() => import("./pages/Cargos"));
+const TrafegoFiliais = lazyWithRetry(() => import("./pages/TrafegoFiliais"));
+const ProdutosConsignados = lazyWithRetry(() => import("./pages/ProdutosConsignados"));
+const Fornecedores = lazyWithRetry(() => import("./pages/Fornecedores"));
 
 const queryClient = new QueryClient();
 

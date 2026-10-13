@@ -1,4 +1,3 @@
-import * as ExcelJS from "exceljs";
 import { maskCpf, maskCnpj, maskCelular, maskCep, formatCentsToDisplay } from "@/lib/masks";
 import { format } from "date-fns";
 
@@ -193,6 +192,9 @@ export async function exportToExcel(
   const allKeys = Object.keys(rows[0]);
   const keys = allKeys.filter(k => !HIDDEN_FIELDS.has(k));
 
+  // Biblioteca grande: só é baixada quando o usuário realmente exporta.
+  const excelModule = await import("exceljs");
+  const ExcelJS = excelModule.default ?? excelModule;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Sistema";
   workbook.created = new Date();

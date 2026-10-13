@@ -9,7 +9,13 @@ vi.mock("@/contexts/FilialContext", () => ({
   useFilial: () => ({ selectedFilial: "all" }),
 }));
 
-import { createVenda, cancelarVenda, historyDaysFor, DEFAULT_HISTORY_DAYS } from "./useSupabaseData";
+import {
+  createVenda,
+  cancelarVenda,
+  historyDaysFor,
+  DEFAULT_HISTORY_DAYS,
+  applyRealtimeChanges,
+} from "./useSupabaseData";
 
 const item = {
   produto_id: "p1",
@@ -104,5 +110,74 @@ describe("historyDaysFor", () => {
   it("amplia a janela quando o período começa antes dela", () => {
     const from = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
     expect(historyDaysFor(from)).toBeGreaterThanOrEqual(200);
+  });
+});
+
+describe("applyRealtimeChanges", () => {
+  type P = { id: string; model: string; filial_id: string; stock: number };
+  const base: P[] = [
+    { id: "a", model: "Alfa", filial_id: "1", stock: 5 },
+    { id: "c", model: "Charlie", filial_id: "1", stock: 2 },
+  ];
+  const opts = { table: "produtos", filialId: "1", sinceIso: null };
+
+  // Comportamento anterior: um evento por vez, reordenando a cada um.
+  function sequencial(prev: P[], events: any[]) {
+    return events.reduce((acc: P[], ev) => applyRealtimeChanges(acc, [ev], opts), prev);
+  }
+
+  it("lote de eventos dá o mesmo resultado de aplicá-los um a um", () => {
+    const events = [
+      { eventType: "UPDATE", new: { id: "a", model: "Alfa", filial_id: "1", stock: 4 } },
+      { eventType: "UPDATE", new: { id: "a", model: "Alfa", filial_id: "1", stock: 3 } },
+      { eventType: "INSERT", new: { id: "b", model: "Bravo", filial_id: "1", stock: 9 } },
+      { eventType: "DELETE", old: { id: "c" } },
+    ];
+    expect(applyRealtimeChanges(base, events, opts)).toEqual(sequencial(base, events));
+    expect(applyRealtimeChanges(base, events, opts).map((p) => p.id)).toEqual(["a", "b"]);
+    expect(applyRealtimeChanges(base, events, opts)[0].stock).toBe(3);
+  });
+
+  it("mantém a ordenação por modelo", () => {
+    const out = applyRealtimeChanges(
+      base,
+      [{ eventType: "INSERT", new: { id: "b", model: "Bravo", filial_id: "1", stock: 1 } }],
+      opts,
+    );
+    expect(out.map((p) => p.model)).toEqual(["Alfa", "Bravo", "Charlie"]);
+  });
+
+  it("remove linhas que saíram da filial selecionada", () => {
+    const out = applyRealtimeChanges(
+      base,
+      [{ eventType: "UPDATE", new: { id: "a", model: "Alfa", filial_id: "2", stock: 5 } }],
+      opts,
+    );
+    expect(out.map((p) => p.id)).toEqual(["c"]);
+  });
+
+  it("ignora eventos de outra filial e devolve a mesma referência", () => {
+    const out = applyRealtimeChanges(
+      base,
+      [{ eventType: "INSERT", new: { id: "x", model: "Zeta", filial_id: "2", stock: 1 } }],
+      opts,
+    );
+    expect(out).toBe(base);
+  });
+
+  it("DELETE de id desconhecido não muda a lista", () => {
+    expect(applyRealtimeChanges(base, [{ eventType: "DELETE", old: { id: "zzz" } }], opts)).toBe(base);
+  });
+
+  it("respeita a janela de datas", () => {
+    const out = applyRealtimeChanges(
+      [] as any[],
+      [
+        { eventType: "INSERT", new: { id: "v1", filial_id: "1", created_at: "2026-01-01T00:00:00Z" } },
+        { eventType: "INSERT", new: { id: "v2", filial_id: "1", created_at: "2026-06-01T00:00:00Z" } },
+      ],
+      { table: "vendas", filialId: null, sinceIso: "2026-03-01T00:00:00Z" },
+    );
+    expect(out.map((v: any) => v.id)).toEqual(["v2"]);
   });
 });

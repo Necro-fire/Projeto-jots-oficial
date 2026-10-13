@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFilial } from "@/contexts/FilialContext";
 
@@ -107,6 +107,9 @@ let channelCounter = 0;
 /** Janela padrão (dias) para tabelas de movimento. `null` carrega todo o histórico. */
 export const DEFAULT_HISTORY_DAYS = 90;
 
+/** Eventos Realtime que chegam em sequência (ex.: venda de 10 itens) viram uma única atualização. */
+const REALTIME_BATCH_MS = 200;
+
 interface RealtimeOptions {
   /** Filtra por filial selecionada (padrão: sim). */
   filterFilial?: boolean;
@@ -131,19 +134,113 @@ function compareRows(table: string) {
   };
 }
 
+interface ApplyChangesOptions {
+  table: string;
+  filialId: string | null;
+  sinceIso: string | null;
+}
+
+/**
+ * Aplica uma lista de eventos Realtime, na ordem em que chegaram, ordenando uma única vez no fim.
+ * Devolve a mesma referência quando nada mudou (evita re-renderizar a lista inteira).
+ */
+export function applyRealtimeChanges<T extends { id: string }>(
+  prev: T[],
+  events: { eventType: string; new?: unknown; old?: unknown }[],
+  { table, filialId, sinceIso }: ApplyChangesOptions,
+): T[] {
+  if (events.length === 0) return prev;
+
+  const byId = new Map<string, T>();
+  for (const row of prev) byId.set(row.id, row);
+  let changed = false;
+
+  for (const event of events) {
+    if (event.eventType === "DELETE") {
+      const id = (event.old as { id?: string } | undefined)?.id;
+      if (id && byId.delete(id)) changed = true;
+      continue;
+    }
+
+    const row = event.new as (T & { filial_id?: string; created_at?: string }) | undefined;
+    if (!row?.id) continue;
+
+    const outOfFilial = filialId !== null && row.filial_id !== filialId;
+    const outOfWindow = !!sinceIso && !!row.created_at && row.created_at < sinceIso;
+    if (outOfFilial || outOfWindow) {
+      if (byId.delete(row.id)) changed = true;
+      continue;
+    }
+
+    byId.set(row.id, row);
+    changed = true;
+  }
+
+  if (!changed) return prev;
+  return Array.from(byId.values()).sort(compareRows(table));
+}
+
+// Última lista conhecida por tabela/filial/janela: ao voltar para a tela os dados aparecem na hora
+// e a busca em segundo plano os revalida. Nunca sobrevive ao logout.
+const dataCache = new Map<string, unknown[]>();
+const EMPTY_ROWS: never[] = [];
+
+export function clearDataCache() {
+  dataCache.clear();
+}
+
+try {
+  (supabase as any).auth?.onAuthStateChange?.((event: string) => {
+    if (event === "SIGNED_OUT") dataCache.clear();
+  });
+} catch {
+  // ambiente sem auth (testes): sem cache a limpar
+}
+
 function useRealtimeTable<T extends { id: string }>(table: string, options: RealtimeOptions = {}) {
   const { filterFilial = true, sinceDays = null } = options;
-  const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { selectedFilial } = useFilial();
+  const { selectedFilial, isFilialRestricted } = useFilial();
   const channelRef = useRef<any>(null);
+
+  // Quem pode ver várias filiais baixa o conjunto completo uma única vez e filtra na tela:
+  // trocar de filial não vai ao servidor. Usuário preso a uma filial baixa só a dela.
+  const filialId = filterFilial && isFilialRestricted && selectedFilial !== "all" ? selectedFilial : null;
+  const cacheKey = `${table}|${filialId ?? "-"}|${sinceDays ?? "all"}`;
+
+  // `key` diz a que filial/janela as linhas pertencem: nunca mostramos a lista de outra filial.
+  const [state, setState] = useState<{ key: string; rows: T[] } | null>(() => {
+    const hit = dataCache.get(cacheKey) as T[] | undefined;
+    return hit ? { key: cacheKey, rows: hit } : null;
+  });
+  const cached = dataCache.get(cacheKey) as T[] | undefined;
+  const rows: T[] = state?.key === cacheKey ? state.rows : (cached ?? (EMPTY_ROWS as T[]));
+  const loading = state?.key !== cacheKey && !cached;
+
+  const needsClientFilter = filterFilial && filialId === null && selectedFilial !== "all";
+  const data = useMemo(
+    () => (needsClientFilter
+      ? rows.filter((row) => (row as { filial_id?: string }).filial_id === selectedFilial)
+      : rows),
+    [rows, needsClientFilter, selectedFilial],
+  );
+
+  const rowsRef = useRef<T[]>(rows);
+  const fetchSeq = useRef(0);
 
   const sinceIso = useCallback(() => {
     if (sinceDays === null || sinceDays === undefined) return null;
     return new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
   }, [sinceDays]);
 
+  const commit = useCallback((rows: T[]) => {
+    rowsRef.current = rows;
+    dataCache.set(cacheKey, rows);
+    setState({ key: cacheKey, rows });
+  }, [cacheKey]);
+
   const fetchData = useCallback(async () => {
+    // Uma resposta lenta de uma filial/janela anterior não pode sobrescrever a atual.
+    const seq = ++fetchSeq.current;
     // Supabase/PostgREST caps a single request at 1000 rows: busca em páginas sequenciais.
     const PAGE_SIZE = 1000;
     const all: T[] = [];
@@ -154,8 +251,8 @@ function useRealtimeTable<T extends { id: string }>(table: string, options: Real
     // Limite de segurança contra laço infinito em resposta inesperada
     for (let page = 0; page < 1000; page++) {
       let query = (supabase as any).from(table).select("*");
-      if (filterFilial && selectedFilial !== "all") {
-        query = query.eq("filial_id", selectedFilial);
+      if (filialId) {
+        query = query.eq("filial_id", filialId);
       }
       if (since) {
         query = query.gte("created_at", since);
@@ -185,34 +282,14 @@ function useRealtimeTable<T extends { id: string }>(table: string, options: Real
       from += PAGE_SIZE;
     }
 
-    if (!failed) setData(all);
-    setLoading(false);
-  }, [table, selectedFilial, filterFilial, sinceIso]);
-
-  // Aplica um evento Realtime ao cache, sem refazer a busca completa.
-  const applyChange = useCallback((payload: any) => {
-    const since = sinceIso();
-    const eventType = payload.eventType as "INSERT" | "UPDATE" | "DELETE";
-
-    setData((prev) => {
-      if (eventType === "DELETE") {
-        const id = payload.old?.id;
-        return id ? prev.filter((r) => r.id !== id) : prev;
-      }
-
-      const row = payload.new as T & { filial_id?: string; created_at?: string };
-      if (!row?.id) return prev;
-
-      const outOfFilial = filterFilial && selectedFilial !== "all" && row.filial_id !== selectedFilial;
-      const outOfWindow = !!since && !!row.created_at && row.created_at < since;
-      const without = prev.filter((r) => r.id !== row.id);
-      if (outOfFilial || outOfWindow) return without;
-
-      return [...without, row as T].sort(compareRows(table));
-    });
-  }, [table, filterFilial, selectedFilial, sinceIso]);
+    if (seq !== fetchSeq.current) return;
+    // Em falha mantém o que já havia (ou lista vazia) e encerra o "carregando".
+    commit(failed ? rowsRef.current : all);
+  }, [table, filialId, sinceIso, commit]);
 
   useEffect(() => {
+    const seqCounter = fetchSeq;
+    rowsRef.current = (dataCache.get(cacheKey) as T[] | undefined) ?? [];
     fetchData();
 
     if (channelRef.current) {
@@ -220,11 +297,28 @@ function useRealtimeTable<T extends { id: string }>(table: string, options: Real
       channelRef.current = null;
     }
 
+    let pending: { eventType: string; new?: unknown; old?: unknown }[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      timer = null;
+      const events = pending;
+      pending = [];
+      const next = applyRealtimeChanges(rowsRef.current, events, {
+        table,
+        filialId,
+        sinceIso: sinceIso(),
+      });
+      if (next !== rowsRef.current) commit(next);
+    };
+
     const topic = `${table}-rt-${++channelCounter}`;
     let firstSubscribe = true;
     const channel = supabase
       .channel(topic)
-      .on("postgres_changes", { event: "*", schema: "public", table }, applyChange)
+      .on("postgres_changes", { event: "*", schema: "public", table }, (payload: any) => {
+        pending.push(payload);
+        if (timer === null) timer = setTimeout(flush, REALTIME_BATCH_MS);
+      })
       .subscribe((status: string) => {
         // Ao reconectar, eventos podem ter sido perdidos: refaz a busca uma vez.
         if (status === "SUBSCRIBED") {
@@ -235,12 +329,14 @@ function useRealtimeTable<T extends { id: string }>(table: string, options: Real
 
     channelRef.current = channel;
     return () => {
+      if (timer !== null) clearTimeout(timer);
+      seqCounter.current++;
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, [fetchData, applyChange, table]);
+  }, [fetchData, commit, cacheKey, table, filialId, sinceIso]);
 
   return { data, loading, refetch: fetchData };
 }

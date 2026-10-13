@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { FileText, Search, Banknote, CreditCard, QrCode, Ban, Receipt, Printer } from "lucide-react";
@@ -14,9 +14,10 @@ import { VendaDetailDialog } from "@/components/VendaDetailDialog";
 import { CupomFiscalDialog } from "@/components/CupomFiscalDialog";
 import { useVendas, historyDaysFor, type DbVenda } from "@/hooks/useSupabaseData";
 import { useNotasFiscais } from "@/hooks/useNotasFiscais";
+import { useVendaPagamentos } from "@/hooks/useVendaPagamentos";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { distributeAmountInCents, parsePaymentDisplay, parseSplitPaymentDisplay, formatCurrency, type BoletoMetaInfo } from "@/lib/paymentUtils";
+import { distributeAmountInCents, parsePaymentDisplay, parseSplitPaymentDisplay, formatCurrency } from "@/lib/paymentUtils";
 import { buildCupomFromVendaId } from "@/lib/cupomFiscalUtils";
 import type { CupomFiscalData } from "@/components/CupomFiscal";
 
@@ -54,54 +55,13 @@ export default function Vendas() {
     );
   }, [notasFiscais]);
 
-  // Fetch all payment splits (caixa_movimentacoes) keyed by venda_id
-  const [splitsByVenda, setSplitsByVenda] = useState<Record<string, { method: string; amount: number }[]>>({});
-  const [boletoMetaByVenda, setBoletoMetaByVenda] = useState<Record<string, BoletoMetaInfo>>({});
-  const [boletoInstallmentsByVenda, setBoletoInstallmentsByVenda] = useState<Record<string, { number: number; amount: number }[]>>({});
-
-  useEffect(() => {
-    if (sales.length === 0) return;
-
-    Promise.all([
-      (supabase as any)
-        .from("caixa_movimentacoes")
-        .select("venda_id, forma_pagamento, valor")
-        .eq("tipo", "venda"),
-      (supabase as any)
-        .from("boleto_alertas")
-        .select("venda_id, total_parcelas, intervalo_dias, parcela_numero, valor_parcela"),
-    ]).then(([splitsRes, boletoRes]: [{ data: any[] | null }, { data: any[] | null }]) => {
-      const splitMap: Record<string, { method: string; amount: number }[]> = {};
-      (splitsRes.data || []).forEach((row: any) => {
-        if (!row.venda_id) return;
-        if (!splitMap[row.venda_id]) splitMap[row.venda_id] = [];
-        splitMap[row.venda_id].push({ method: row.forma_pagamento, amount: Number(row.valor) });
-      });
-
-      const boletoMap: Record<string, BoletoMetaInfo> = {};
-      const boletoInstallmentsMap: Record<string, { number: number; amount: number }[]> = {};
-      (boletoRes.data || []).forEach((row: any) => {
-        if (!row.venda_id) return;
-        if (!boletoInstallmentsMap[row.venda_id]) boletoInstallmentsMap[row.venda_id] = [];
-        boletoInstallmentsMap[row.venda_id].push({
-          number: Number(row.parcela_numero),
-          amount: Number(row.valor_parcela),
-        });
-        const installments = Number(row.total_parcelas || 0);
-        const intervalDays = Number(row.intervalo_dias || 0);
-        if (!installments || !intervalDays) return;
-
-        const existing = boletoMap[row.venda_id];
-        if (!existing || installments > existing.installments) {
-          boletoMap[row.venda_id] = { installments, intervalDays };
-        }
-      });
-
-      setSplitsByVenda(splitMap);
-      setBoletoMetaByVenda(boletoMap);
-      setBoletoInstallmentsByVenda(boletoInstallmentsMap);
-    });
-  }, [sales]);
+  // Só as vendas do período filtrado precisam de formas de pagamento; busca só as novas/alteradas.
+  const rangeSales = useMemo(() => filterByDateRange(sales, range), [sales, range]);
+  const rangeVendas = useMemo(
+    () => rangeSales.map((s) => ({ id: s.id, status: s.status })),
+    [rangeSales],
+  );
+  const { splitsByVenda, boletoMetaByVenda, boletoInstallmentsByVenda } = useVendaPagamentos(rangeVendas);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [boletoFilter, setBoletoFilter] = useState("all");
@@ -122,7 +82,7 @@ export default function Vendas() {
   };
 
   const filtered = useMemo(() => {
-    let result = filterByDateRange(sales, range);
+    let result = [...rangeSales];
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(
@@ -142,7 +102,7 @@ export default function Vendas() {
       result = result.filter(s => s.payment_method.toLowerCase().includes(paymentFilter));
     }
     return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [sales, range, search, statusFilter, boletoFilter, paymentFilter]);
+  }, [rangeSales, search, statusFilter, boletoFilter, paymentFilter]);
 
   const totalRevenue = filtered.reduce((acc, s) => acc + Number(s.total), 0);
 
@@ -221,8 +181,7 @@ export default function Vendas() {
             { label: "Cartão de Débito", key: "cartão de débito" },
             { label: "Boleto", key: "boleto" },
           ].map(({ label, key }) => {
-            const allSales = filterByDateRange(sales, range);
-            const methodSales = allSales.filter((s) => s.payment_method.toLowerCase().includes(key));
+            const methodSales = rangeSales.filter((s) => s.payment_method.toLowerCase().includes(key));
             const methodTotal = methodSales.reduce((acc, s) => acc + Number(s.total), 0);
             const isActive = paymentFilter === key;
             return (

@@ -3,8 +3,6 @@ import { Plus, Package, Pencil, Trash2, ShoppingCart, ImageDown, ZoomIn, Eye, Ta
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
 import { ModalImprimirEtiqueta } from "@/components/ModalImprimirEtiqueta";
 // productImageFooter is used at save-time in ProductFormDialog
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { AtacadoDialog } from "@/components/AtacadoDialog";
@@ -14,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useFilial } from "@/contexts/FilialContext";
 import { FilialSelector } from "@/components/FilialSelector";
 import { useProducts, type DbProduct } from "@/hooks/useSupabaseData";
+import { useProgressiveList } from "@/hooks/useProgressiveList";
 import { ProductFormDialog } from "@/components/ProductFormDialog";
 import { ProductFilters, useProductFilters, applyProductFilters, getStockLevel } from "@/components/ProductFilters";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -43,6 +42,9 @@ export default function Produtos() {
   const getFilialName = (filialId: string) => filiais.find(f => f.id === filialId)?.name || filialId;
 
   const filtered = useMemo(() => applyProductFilters(products, filters), [products, filters]);
+
+  // Monta os cartões aos poucos: trocar de filial/filtro não remonta milhares de itens de uma vez.
+  const { visible: visibleProducts, hasMore, sentinelRef } = useProgressiveList(filtered, [selectedFilial, filters]);
 
   const [deleteCheck, setDeleteCheck] = useState<{ canDelete: boolean; reason?: string } | null>(null);
 
@@ -131,6 +133,8 @@ export default function Produtos() {
 
   // Generate a ZIP from the given files and trigger automatic download
   const downloadZip = async (files: File[], zipName = "imagens-compartilhamento.zip") => {
+    // Bibliotecas só necessárias ao gerar o .zip: carregadas sob demanda.
+    const [{ default: JSZip }, { saveAs }] = await Promise.all([import("jszip"), import("file-saver")]);
     const zip = new JSZip();
     files.forEach((f, i) => {
       // Standardize names inside the zip: produto-1.jpg, produto-2.jpg, ...
@@ -249,11 +253,12 @@ export default function Produtos() {
         {products.length > 0 && <ProductFilters filters={filters} onChange={setFilters} products={products} />}
 
         {filtered.length > 0 ? (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {filtered.map(product => {
+            {visibleProducts.map(product => {
               const productName = normalizeProductModelName(product.model) || product.referencia;
               return (
-                <div key={product.id} className="rounded-lg shadow-card bg-card p-3 group hover:shadow-md transition-shadow relative">
+                <div key={product.id} className="rounded-lg shadow-card bg-card p-3 group hover:shadow-md transition-shadow relative [content-visibility:auto] [contain-intrinsic-size:auto_320px]">
                     <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {product.image_url && (
                         <Button variant="secondary" size="icon" className="h-7 w-7" title="Visualizar" onClick={() => setZoomImage({ url: product.image_url, name: productName, category: product.category, classificacao: (product as any).classificacao, haste: product.temple_size, lente: product.lens_size, ponte: product.bridge_size })}>
@@ -274,7 +279,7 @@ export default function Produtos() {
 
                   <div className="aspect-[3/2] rounded-md bg-secondary flex items-center justify-center overflow-hidden">
                     {product.image_url ? (
-                      <img src={product.image_url} alt={productName} className="w-full h-full object-cover" />
+                      <img src={product.image_url} alt={productName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-muted-foreground/30 text-title font-bold">{productName}</span>
                     )}
@@ -361,6 +366,8 @@ export default function Produtos() {
               );
             })}
           </div>
+          {hasMore && <div ref={sentinelRef} className="h-10" aria-hidden="true" />}
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Package className="h-12 w-12 mb-3 opacity-30" />

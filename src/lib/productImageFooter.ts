@@ -11,6 +11,8 @@ const FOOTER_RATIO = 0.10;
 const MAX_FOOTER_RATIO = 0.15;
 const MAX_FOOTER_SCAN_RATIO = 0.38;
 const FOOTER_SEPARATOR_HEIGHT = 2;
+/** Maior lado, em px, das imagens enviadas. Fotos maiores só gastam banda e memória nas listas. */
+const MAX_IMAGE_SIDE = 1280;
 
 type RowMetric = {
   darkRatio: number;
@@ -25,6 +27,7 @@ export const __productImageFooterTestUtils = {
   detectFooterBandStartFromMetrics,
   detectFooterSeparatorStartFromMetrics,
   getFooterHeight,
+  getScaledSize,
 };
 
 /**
@@ -125,7 +128,32 @@ async function prepareCleanImageCanvas(
   if (!cleanCtx) throw new Error("Canvas context unavailable");
   cleanCtx.drawImage(img, 0, 0, srcW, cleanH, 0, 0, srcW, cleanH);
 
-  return { canvas: cleanCanvas, width: srcW, height: cleanH };
+  // A detecção do rodapé antigo roda na resolução original; só depois a imagem é reduzida.
+  const scaled = getScaledSize(srcW, cleanH, MAX_IMAGE_SIDE);
+  if (scaled.width === srcW && scaled.height === cleanH) {
+    return { canvas: cleanCanvas, width: srcW, height: cleanH };
+  }
+
+  const scaledCanvas = document.createElement("canvas");
+  scaledCanvas.width = scaled.width;
+  scaledCanvas.height = scaled.height;
+  const scaledCtx = scaledCanvas.getContext("2d");
+  if (!scaledCtx) throw new Error("Canvas context unavailable");
+  scaledCtx.imageSmoothingQuality = "high";
+  scaledCtx.drawImage(cleanCanvas, 0, 0, srcW, cleanH, 0, 0, scaled.width, scaled.height);
+
+  return { canvas: scaledCanvas, width: scaled.width, height: scaled.height };
+}
+
+/** Reduz mantendo a proporção para que o maior lado não passe de `maxSide`; nunca amplia. */
+function getScaledSize(width: number, height: number, maxSide: number): { width: number; height: number } {
+  const longest = Math.max(width, height);
+  if (longest <= maxSide) return { width, height };
+  const ratio = maxSide / longest;
+  return {
+    width: Math.max(1, Math.round(width * ratio)),
+    height: Math.max(1, Math.round(height * ratio)),
+  };
 }
 
 function getFooterHeight(imageHeight: number): number {

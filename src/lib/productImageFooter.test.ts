@@ -32,6 +32,14 @@ describe("productImageFooter detection", () => {
     expect(__productImageFooterTestUtils.detectFooterSeparatorStartFromMetrics(metrics, scanStart)).toBe(738);
   });
 
+  it("reduz fotos grandes mantendo a proporção e nunca amplia", () => {
+    const { getScaledSize } = __productImageFooterTestUtils;
+    expect(getScaledSize(4000, 3000, 1280)).toEqual({ width: 1280, height: 960 });
+    expect(getScaledSize(3000, 4000, 1280)).toEqual({ width: 960, height: 1280 });
+    expect(getScaledSize(800, 600, 1280)).toEqual({ width: 800, height: 600 });
+    expect(getScaledSize(1280, 720, 1280)).toEqual({ width: 1280, height: 720 });
+  });
+
   it("does not crop images that do not contain a footer", () => {
     const scanStart = 620;
     const imageHeight = 1000;
