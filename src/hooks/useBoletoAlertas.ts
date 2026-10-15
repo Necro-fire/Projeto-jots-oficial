@@ -13,8 +13,13 @@ export interface BoletoAlerta {
   status: string;
   intervalo_dias: number;
   created_at: string;
+  /** 'cancelar_no_banco' | 'reemitir_no_banco' | null: ação que alguém precisa fazer no banco. */
+  aviso?: string | null;
+  aviso_detalhe?: string | null;
   // joined
   venda_number?: number;
+  venda_code?: string;
+  venda_status?: string;
   client_name?: string;
 }
 
@@ -23,6 +28,12 @@ const REFETCH_DEBOUNCE_MS = 400;
 /** Só refaz a busca ao voltar para a aba se ela ficou escondida por mais que isso. */
 const VISIBILITY_REFETCH_AFTER_MS = 60_000;
 const PAGE_SIZE = 1000;
+/** Parcelas geradas/canceladas só entram se venceram nesta janela; pendentes e avisos entram sempre. */
+const HISTORY_DAYS = 90;
+
+/** Colunas/funções da migração 20261015120000 ainda não existem neste banco. */
+const isMissingSchema = (error: { code?: string } | null | undefined) =>
+  error?.code === "42703" || error?.code === "PGRST202" || error?.code === "42883";
 
 export function useBoletoAlertas() {
   const [alertas, setAlertas] = useState<BoletoAlerta[]>([]);
@@ -34,12 +45,17 @@ export function useBoletoAlertas() {
     // Uma resposta antiga (outra filial, evento anterior) não pode sobrescrever a mais nova.
     const seq = ++fetchSeq.current;
     const all: any[] = [];
+    const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const legacyWindow = `status.eq.pendente,data_vencimento.gte.${since}`;
+    const fullWindow = `status.eq.pendente,aviso.not.is.null,data_vencimento.gte.${since}`;
+    let legacySchema = false;
 
     // PostgREST corta em 1000 linhas: busca em páginas para não perder parcelas futuras.
     for (let page = 0; page < 1000; page++) {
       let query = (supabase as any)
         .from("boleto_alertas")
-        .select("*, vendas(number, client_name)")
+        .select("*, vendas(number, sale_code, client_name, status)")
+        .or(legacySchema ? legacyWindow : fullWindow)
         .order("data_vencimento", { ascending: true })
         .order("id", { ascending: true })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
@@ -49,6 +65,12 @@ export function useBoletoAlertas() {
       }
 
       const { data, error } = await query;
+      if (error && !legacySchema && isMissingSchema(error)) {
+        // Banco sem a coluna "aviso": repete a busca sem ela.
+        legacySchema = true;
+        page--;
+        continue;
+      }
       if (error || !data) {
         if (seq === fetchSeq.current) setLoading(false);
         return;
@@ -62,6 +84,8 @@ export function useBoletoAlertas() {
       all.map((row) => ({
         ...row,
         venda_number: row.vendas?.number,
+        venda_code: row.vendas?.sale_code || undefined,
+        venda_status: row.vendas?.status,
         client_name: row.vendas?.client_name || "Cliente avulso",
       })),
     );
@@ -115,15 +139,40 @@ export function useBoletoAlertas() {
     };
   }, [fetchAlertas]);
 
-  const updateStatus = useCallback(async (alertaId: string, newStatus: string) => {
-    const { error } = await (supabase as any)
-      .from("boleto_alertas")
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq("id", alertaId);
-    if (error) throw new Error(error.message);
-  }, []);
+  const updateStatus = useCallback((alertaId: string, newStatus: string) => alterarStatusBoleto(alertaId, newStatus), []);
+  const resolveAviso = useCallback(async (alertaId: string) => {
+    await resolverAvisoBoleto(alertaId);
+    await fetchAlertas();
+  }, [fetchAlertas]);
 
-  return { alertas, loading, refetch: fetchAlertas, updateStatus };
+  return { alertas, loading, refetch: fetchAlertas, updateStatus, resolveAviso };
+}
+
+/** Muda o status de uma parcela (e mantém o status da venda em dia). Cai para o UPDATE direto em bancos sem a RPC. */
+export async function alterarStatusBoleto(alertaId: string, status: string) {
+  const { error } = await (supabase as any).rpc("alterar_status_boleto", { _alerta_id: alertaId, _status: status });
+  if (!error) return;
+  if (!isMissingSchema(error)) throw new Error(error.message);
+  const { error: legacy } = await (supabase as any)
+    .from("boleto_alertas")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", alertaId);
+  if (legacy) throw new Error(legacy.message);
+}
+
+/** Muda o status de todas as parcelas ativas da venda e o status do boleto na lista de Vendas. */
+export async function definirStatusBoletoVenda(vendaId: string, status: string) {
+  const { error } = await (supabase as any).rpc("definir_status_boleto_venda", { _venda_id: vendaId, _status: status });
+  if (!error) return;
+  if (!isMissingSchema(error)) throw new Error(error.message);
+  const { error: legacy } = await (supabase as any).from("vendas").update({ status_boleto: status }).eq("id", vendaId);
+  if (legacy) throw new Error(legacy.message);
+}
+
+/** Marca como feita a ação pedida no aviso (baixa ou reemissão do boleto no banco). */
+export async function resolverAvisoBoleto(alertaId: string) {
+  const { error } = await (supabase as any).rpc("resolver_aviso_boleto", { _alerta_id: alertaId });
+  if (error) throw new Error(error.message);
 }
 
 export async function createBoletoAlertas(

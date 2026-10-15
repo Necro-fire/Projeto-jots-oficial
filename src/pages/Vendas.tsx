@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { FileText, Search, Banknote, CreditCard, QrCode, Ban, Receipt, Printer } from "lucide-react";
@@ -15,7 +16,8 @@ import { CupomFiscalDialog } from "@/components/CupomFiscalDialog";
 import { useVendas, historyDaysFor, type DbVenda } from "@/hooks/useSupabaseData";
 import { useNotasFiscais } from "@/hooks/useNotasFiscais";
 import { useVendaPagamentos } from "@/hooks/useVendaPagamentos";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { definirStatusBoletoVenda } from "@/hooks/useBoletoAlertas";
 import { toast } from "sonner";
 import { distributeAmountInCents, parsePaymentDisplay, parseSplitPaymentDisplay, formatCurrency } from "@/lib/paymentUtils";
 import { buildCupomFromVendaId } from "@/lib/cupomFiscalUtils";
@@ -62,7 +64,10 @@ export default function Vendas() {
     [rangeSales],
   );
   const { splitsByVenda, boletoMetaByVenda, boletoInstallmentsByVenda } = useVendaPagamentos(rangeVendas);
-  const [search, setSearch] = useState("");
+  // O sino de notificações abre esta tela já buscando a venda do boleto (?busca=...).
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get("busca") ?? "");
+  const { isAdmin } = useAuth();
   const [statusFilter, setStatusFilter] = useState("all");
   const [boletoFilter, setBoletoFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState<string | null>(null);
@@ -96,7 +101,7 @@ export default function Vendas() {
       result = result.filter(s => s.status === statusFilter);
     }
     if (boletoFilter !== "all") {
-      result = result.filter(s => (s as any).status_boleto === boletoFilter);
+      result = result.filter(s => s.status !== "cancelada" && (s as any).status_boleto === boletoFilter);
     }
     if (paymentFilter) {
       result = result.filter(s => s.payment_method.toLowerCase().includes(paymentFilter));
@@ -110,18 +115,15 @@ export default function Vendas() {
   const getFilialName = (filialId: string) => filiais.find((f) => f.id === filialId)?.name || filialId;
 
   const handleBoletoStatusChange = async (vendaId: string, newStatus: string) => {
-    const { error } = await (supabase as any)
-      .from("vendas")
-      .update({ status_boleto: newStatus })
-      .eq("id", vendaId);
-    if (error) {
-      toast.error("Erro ao atualizar status do boleto");
-    } else {
+    try {
+      await definirStatusBoletoVenda(vendaId, newStatus);
       toast.success(`Status do boleto alterado para ${newStatus}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao atualizar status do boleto");
     }
   };
 
-  const hasBoletos = sales.some(s => (s as any).status_boleto && (s as any).status_boleto !== "");
+  const hasBoletos = sales.some(s => s.status !== "cancelada" && (s as any).status_boleto && (s as any).status_boleto !== "");
 
   return (
     <div>
@@ -237,28 +239,37 @@ export default function Vendas() {
                           </Badge>
                         )}
                         {isBoleto && !isCancelled && (
-                          <Select
-                            value={statusBoleto}
-                            onValueChange={(v) => {
-                              handleBoletoStatusChange(sale.id, v);
-                            }}
-                          >
-                            <SelectTrigger
-                              className="h-5 text-[10px] px-2 w-auto min-w-0 border-none"
-                              onClick={(e) => e.stopPropagation()}
+                          isAdmin ? (
+                            <Select
+                              value={statusBoleto}
+                              onValueChange={(v) => {
+                                handleBoletoStatusChange(sale.id, v);
+                              }}
                             >
-                              <Badge
-                                variant={statusBoleto === "gerado" ? "default" : "secondary"}
-                                className="text-[10px] h-4 px-1.5"
+                              <SelectTrigger
+                                className="h-5 text-[10px] px-2 w-auto min-w-0 border-none"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                {statusBoleto === "gerado" ? "Gerado" : "Pendente"}
-                              </Badge>
-                            </SelectTrigger>
-                            <SelectContent onClick={(e) => e.stopPropagation()}>
-                              <SelectItem value="pendente">Pendente</SelectItem>
-                              <SelectItem value="gerado">Gerado</SelectItem>
-                            </SelectContent>
-                          </Select>
+                                <Badge
+                                  variant={statusBoleto === "gerado" ? "default" : "secondary"}
+                                  className="text-[10px] h-4 px-1.5"
+                                >
+                                  {statusBoleto === "gerado" ? "Gerado" : "Pendente"}
+                                </Badge>
+                              </SelectTrigger>
+                              <SelectContent onClick={(e) => e.stopPropagation()}>
+                                <SelectItem value="pendente">Pendente</SelectItem>
+                                <SelectItem value="gerado">Gerado</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge
+                              variant={statusBoleto === "gerado" ? "default" : "secondary"}
+                              className="text-[10px] h-4 px-1.5"
+                            >
+                              Boleto {statusBoleto === "gerado" ? "gerado" : "pendente"}
+                            </Badge>
+                          )
                         )}
                       </div>
                       <p className="text-caption text-muted-foreground">{sale.client_name || "Cliente avulso"}</p>

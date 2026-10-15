@@ -3,7 +3,7 @@
 --   npx supabase db query --linked -f supabase/tests/regressao_banco.sql
 -- O bloco termina SEMPRE com um erro 'RESULTADO_TESTE ...' que reverte tudo; o relatório está
 -- na mensagem. Cada linha 'Tn OK' passou; qualquer 'FALHOU' indica regressão.
--- Pré-requisito: migrações 20261010120000..200 aplicadas; existir produto da filial 2 com saldo >= 3.
+-- Pré-requisito: migrações 20261010120000..200 aplicadas (T9 também exige 20261015120000); existir produto da filial 2 com saldo >= 3.
 
 DO $t$
 DECLARE
@@ -107,6 +107,59 @@ BEGIN
   v_log := v_log || format(E'T7 split: total=%s | movs caixa=%s | boleto_alertas=%s | soma boletos=%s\n', v_venda->>'total',
      (SELECT count(*) FROM caixa_movimentacoes WHERE venda_id=v_vid), (SELECT count(*) FROM boleto_alertas WHERE venda_id=v_vid),
      (SELECT sum(valor_parcela) FROM boleto_alertas WHERE venda_id=v_vid));
+
+  -- T9: cancelamento zera boletos; parcela gerada vira aviso; trava e reversao (migracao 20261015120000)
+  IF to_regclass('public.boleto_alertas') IS NOT NULL AND EXISTS (
+       SELECT 1 FROM information_schema.columns WHERE table_name='boleto_alertas' AND column_name='aviso') THEN
+    SET LOCAL ROLE authenticated;
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role','authenticated')::text, true);
+    PERFORM public.alterar_status_boleto((SELECT id FROM boleto_alertas WHERE venda_id=v_vid AND parcela_numero=1), 'gerado');
+    RESET ROLE;
+    v_log := v_log || format(E'T9a status_boleto da venda apos gerar 1 parcela=%s (esperado pendente)
+',
+       (SELECT status_boleto FROM vendas WHERE id=v_vid));
+
+    SET LOCAL ROLE authenticated;
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role','authenticated')::text, true);
+    PERFORM public.cancelar_venda(v_vid, 'teste boleto');
+    RESET ROLE;
+    v_log := v_log || format(E'T9b apos cancelar: parcelas ativas=%s (esperado 0) | avisos=%s (esperado 1) | status_boleto=[%s] (esperado vazio)
+',
+       (SELECT count(*) FROM boleto_alertas WHERE venda_id=v_vid AND status<>'cancelado'),
+       (SELECT count(*) FROM boleto_alertas WHERE venda_id=v_vid AND aviso='cancelar_no_banco'),
+       (SELECT status_boleto FROM vendas WHERE id=v_vid));
+
+    BEGIN
+      SET LOCAL ROLE authenticated;
+      PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role','authenticated')::text, true);
+      UPDATE boleto_alertas SET status='pendente' WHERE venda_id=v_vid;
+      GET DIAGNOSTICS v_n = ROW_COUNT;
+      RESET ROLE;
+      IF EXISTS (SELECT 1 FROM boleto_alertas WHERE venda_id=v_vid AND status<>'cancelado') THEN
+        v_log := v_log || E'T9c FALHOU: parcela de venda cancelada foi reativada
+';
+      ELSE
+        v_log := v_log || E'T9c OK parcela de venda cancelada nao reativa
+';
+      END IF;
+    EXCEPTION WHEN OTHERS THEN RESET ROLE; v_log := v_log || format(E'T9c OK reativacao recusada: %s
+', SQLERRM);
+    END;
+
+    SET LOCAL ROLE authenticated;
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role','authenticated')::text, true);
+    PERFORM public.reverter_cancelamento_venda(v_vid, 'teste reversao boleto');
+    RESET ROLE;
+    v_log := v_log || format(E'T9d apos desfazer: gerado=%s (esperado 1) pendente=%s (esperado 2) cancelado=%s (esperado 0) | status_boleto=%s (esperado pendente)
+',
+       (SELECT count(*) FROM boleto_alertas WHERE venda_id=v_vid AND status='gerado'),
+       (SELECT count(*) FROM boleto_alertas WHERE venda_id=v_vid AND status='pendente'),
+       (SELECT count(*) FROM boleto_alertas WHERE venda_id=v_vid AND status='cancelado'),
+       (SELECT status_boleto FROM vendas WHERE id=v_vid));
+  ELSE
+    v_log := v_log || E'T9 pulado (migracao 20261015120000 nao aplicada)
+';
+  END IF;
 
   -- T8: funcoes abertas a anon depois da migracao
   v_log := v_log || format(E'T8 funcoes public ainda executaveis por anon: %s\n',

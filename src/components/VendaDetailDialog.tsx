@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { getSignedUrl } from "@/lib/storageUtils";
-import { format, isPast, isToday, isSameMonth } from "date-fns";
+import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { cancelarVenda, reverterCancelamentoVenda } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { alterarStatusBoleto } from "@/hooks/useBoletoAlertas";
+import { boletoAvisoLabel, classifyBoleto } from "@/lib/boletoStatus";
 import { distributeAmountInCents, parsePaymentDisplay, parseSplitPaymentDisplay, isSplitPayment, parseSplitMethods, formatCurrency, type BoletoMetaInfo } from "@/lib/paymentUtils";
 import type { DbVenda, DbVendaItem } from "@/hooks/useSupabaseData";
 
@@ -71,7 +73,7 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [undoMotivo, setUndoMotivo] = useState("");
   const [undoing, setUndoing] = useState(false);
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAdmin } = useAuth();
 
   // Item-level cancel state
   const [cancellingItemId, setCancellingItemId] = useState<string | null>(null);
@@ -198,6 +200,13 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
         .select("*")
         .eq("venda_id", venda.id);
       setItems(data || []);
+      // Parcelas de boleto acompanham o novo total da venda.
+      const { data: boletoData } = await (supabase as any)
+        .from("boleto_alertas")
+        .select("*")
+        .eq("venda_id", venda.id)
+        .order("parcela_numero", { ascending: true });
+      setBoletos(boletoData || []);
       setCancellingItemId(null);
       setItemMotivo("");
     } catch (err: any) {
@@ -554,19 +563,21 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                 <div className="space-y-1.5">
                   {boletos.map((b) => {
                     const venc = new Date(b.data_vencimento);
-                    const isOverdue = isPast(venc) && !isToday(venc);
-                    const now = new Date();
-                    const displayStatus = b.status === "gerado" ? "gerado" :
-                      (isPast(venc) || isToday(venc) || isSameMonth(venc, now)) ? "pendente" : "futuro";
+                    const displayStatus = classifyBoleto({ ...b, venda_status: venda.status });
+                    const isParcelaCancelada = displayStatus === "cancelado";
+                    const isOverdue = !isParcelaCancelada && isPast(venc) && !isToday(venc);
+                    const statusLabel = displayStatus === "gerado" ? "Gerado" : displayStatus === "pendente" ? "Pendente" : "Futuro";
+                    const statusVariant = displayStatus === "gerado" ? "default" : displayStatus === "pendente" ? "destructive" : "secondary";
 
                     return (
                       <div key={b.id} className={`flex items-center justify-between p-2.5 rounded-md border ${
+                        isParcelaCancelada ? "bg-muted/50 border-border/50 opacity-70" :
                         displayStatus === "pendente" ? "bg-destructive/5 border-destructive/20" :
                         displayStatus === "gerado" ? "bg-primary/5 border-primary/20" :
                         "bg-secondary/30 border-border/50"
                       }`}>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium">
+                          <p className={`text-xs font-medium ${isParcelaCancelada ? "line-through text-muted-foreground" : ""}`}>
                             Parcela {b.parcela_numero}/{b.total_parcelas}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
@@ -575,46 +586,49 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
                               displayStatus === "pendente" ? "text-warning font-medium" : "text-muted-foreground"
                             }`}>
                               <Clock className="h-3 w-3" />
-                              {isOverdue ? "Vencido " : "Vence "}
+                              {isParcelaCancelada ? "" : isOverdue ? "Vencido " : "Vence "}
                               {format(venc, "dd/MM/yy", { locale: ptBR })}
                             </span>
-                            <span className="text-[11px] font-bold">
+                            <span className={`text-[11px] font-bold ${isParcelaCancelada ? "line-through text-muted-foreground" : ""}`}>
                               R$ {Number(b.valor_parcela).toFixed(2)}
                             </span>
                           </div>
+                          {b.aviso && (
+                            <p className="text-[11px] font-medium text-warning mt-1">
+                              {boletoAvisoLabel(b.aviso)}
+                              {b.aviso_detalhe ? <span className="font-normal text-muted-foreground"> · {b.aviso_detalhe}</span> : null}
+                            </p>
+                          )}
                         </div>
                         <div onClick={(e) => e.stopPropagation()}>
-                          <Select
-                            value={b.status}
-                            onValueChange={async (v) => {
-                              const { error } = await (supabase as any)
-                                .from("boleto_alertas")
-                                .update({ status: v, updated_at: new Date().toISOString() })
-                                .eq("id", b.id);
-                              if (error) {
-                                toast.error("Erro ao atualizar status");
-                              } else {
-                                toast.success("Status atualizado");
-                                setBoletos(prev => prev.map(x => x.id === b.id ? { ...x, status: v } : x));
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="h-7 text-[10px] px-2 w-auto min-w-[90px] border-border/50">
-                              <Badge
-                                variant={
-                                  displayStatus === "gerado" ? "default" :
-                                  displayStatus === "pendente" ? "destructive" : "secondary"
+                          {isParcelaCancelada ? (
+                            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-muted text-muted-foreground">
+                              Cancelado
+                            </Badge>
+                          ) : !isAdmin ? (
+                            <Badge variant={statusVariant} className="text-[10px] h-5 px-1.5">{statusLabel}</Badge>
+                          ) : (
+                            <Select
+                              value={b.status}
+                              onValueChange={async (v) => {
+                                try {
+                                  await alterarStatusBoleto(b.id, v);
+                                  toast.success("Status atualizado");
+                                  setBoletos(prev => prev.map(x => x.id === b.id ? { ...x, status: v } : x));
+                                } catch (err) {
+                                  toast.error(err instanceof Error ? err.message : "Erro ao atualizar status");
                                 }
-                                className="text-[10px] h-4 px-1.5"
-                              >
-                                {displayStatus === "gerado" ? "Gerado" : displayStatus === "pendente" ? "Pendente" : "Futuro"}
-                              </Badge>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pendente">Pendente</SelectItem>
-                              <SelectItem value="gerado">Gerado</SelectItem>
-                            </SelectContent>
-                          </Select>
+                              }}
+                            >
+                              <SelectTrigger className="h-7 text-[10px] px-2 w-auto min-w-[90px] border-border/50">
+                                <Badge variant={statusVariant} className="text-[10px] h-4 px-1.5">{statusLabel}</Badge>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pendente">Pendente</SelectItem>
+                                <SelectItem value="gerado">Gerado</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                       </div>
                     );
@@ -705,6 +719,12 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
             <AlertDialogDescription>
               Esta ação irá reverter automaticamente o estoque e o financeiro.
               A venda permanecerá visível no sistema com status cancelada.
+              {boletos.some((b) => b.status === "gerado") && (
+                <span className="mt-2 block font-medium text-warning">
+                  Há boleto(s) já gerado(s) nesta venda: depois de cancelar, dê baixa neles no banco.
+                  O aviso ficará no sino de notificações até você marcar como resolvido.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-2">
@@ -742,6 +762,14 @@ export function VendaDetailDialog({ venda, open, onOpenChange }: VendaDetailDial
             </AlertDialogTitle>
             <AlertDialogDescription>
               O estoque será restaurado e o valor será subtraído da venda. A venda continuará ativa com os demais itens.
+              {boletos.some((b) => b.status !== "cancelado") && (
+                <span className="mt-2 block">
+                  As parcelas do boleto serão recalculadas para o novo total.
+                  {boletos.some((b) => b.status === "gerado") && (
+                    <span className="font-medium text-warning"> Boletos já gerados precisarão ser reemitidos no banco.</span>
+                  )}
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-2">
