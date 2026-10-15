@@ -31,7 +31,7 @@ export default function Estoque() {
   const { selectedFilial, filiais } = useFilial();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: products } = useProducts();
-  const { filters, setFilters } = useProductFilters();
+  const { filters, setFilters } = useProductFilters("estoque");
   const { hasPermission } = useAuth();
   const canManageAlerts = hasPermission('estoque', 'manage_alert');
 
@@ -49,7 +49,7 @@ export default function Estoque() {
 
 
     if (estiloParam) {
-      setFilters(prev => ({ ...prev, estilo: estiloParam, tipoItem: "normal" }));
+      setFilters(prev => ({ ...prev, estilo: [estiloParam], tipoItem: "normal" }));
       changed = true;
     }
 
@@ -57,9 +57,9 @@ export default function Estoque() {
       setFilters(prev => ({
         ...prev,
         tipoItem: "acessorio",
-        catAcessorio: catAcessorioParam,
-        ...(tipoAcessorioParam ? { tipoAcessorio: tipoAcessorioParam } : {}),
-        ...(corParam ? { corAcessorio: corParam } : {}),
+        catAcessorio: [catAcessorioParam],
+        ...(tipoAcessorioParam ? { tipoAcessorio: [tipoAcessorioParam] } : {}),
+        ...(corParam ? { corAcessorio: [corParam] } : {}),
       }));
       changed = true;
     }
@@ -70,7 +70,7 @@ export default function Estoque() {
         ...prev,
         tipoItem: "acessorio",
         search: subcategoriaParam,
-        ...(corParam ? { corAcessorio: corParam } : {}),
+        ...(corParam ? { corAcessorio: [corParam] } : {}),
       }));
       changed = true;
     }
@@ -110,7 +110,7 @@ export default function Estoque() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {products.length > 0 && <ProductFilters filters={filters} onChange={setFilters} />}
+          {products.length > 0 && <ProductFilters filters={filters} onChange={setFilters} products={products} />}
           {canManageAlerts && <StockAlertConfigDialog />}
         </div>
 

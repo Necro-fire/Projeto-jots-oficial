@@ -26,7 +26,7 @@ export default function Produtos() {
   const [editingProduct, setEditingProduct] = useState<DbProduct | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<DbProduct | null>(null);
   const { selectedFilial, filiais } = useFilial();
-  const { filters, setFilters } = useProductFilters();
+  const { filters, setFilters } = useProductFilters("produtos");
   const { hasPermission } = useAuth();
   const isMobile = useIsMobile();
   const canCreate = hasPermission('produtos', 'create');

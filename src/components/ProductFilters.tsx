@@ -1,8 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
-import { matchesProductSearch } from "@/lib/productSearch";
-import { Filter, X, Search, Lock } from "lucide-react";
+import { Filter, X, Search, Lock, Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -10,213 +9,195 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useFilial } from "@/contexts/FilialContext";
+import { cn } from "@/lib/utils";
+import { normalizeSearchText } from "@/lib/productSearch";
 import {
   CATEGORIAS_IDADE, GENEROS, ESTILOS, TODAS_CORES,
   MATERIAIS_ARO, MATERIAIS_HASTE, TIPOS_LENTE,
   TIPOS_HASTE, PONTES_ARMACAO,
-  CATEGORIAS_IDADE_LABEL, GENEROS_LABEL,
 } from "@/data/productConstants";
 import { ACESSORIOS_CATEGORIAS, getTiposByCategoria } from "@/data/accessoryConstants";
+import {
+  applyProductFilters, countActiveFilters, createEmptyFilters, lensTypesOf, splitValues,
+  ACCESSORY_FILTER_KEYS, FRAME_FILTER_KEYS,
+  type FilterableProduct, type ProductFilterListKey, type ProductFilterValues,
+} from "@/lib/productFilterLogic";
 
-export type StockLevel = "normal" | "low" | "critical" | "out_of_stock";
+export {
+  applyProductFilters, getStockLevel, getStockStatus,
+  type ProductFilterValues, type StockLevel,
+} from "@/lib/productFilterLogic";
 
-export interface ProductFilterValues {
-  search: string;
-  tipoItem: string;
-  classificacaoProduto: string;
-  categoriaIdade: string;
-  genero: string;
-  estilo: string;
-  corArmacao: string;
-  materialAro: string;
-  materialHaste: string;
-  tipoLente: string;
-  polarizado: string;
-  tipoHaste: string;
-  ponteArmacao: string;
-  tamanhoArmacao: string;
-  filterLensSize: string;
-  filterAlturaLente: string;
-  filterBridgeSize: string;
-  filterTempleSize: string;
-  // Accessory hierarchical filters
-  catAcessorio: string;
-  tipoAcessorio: string;
-  corAcessorio: string;
-  priceMin: string;
-  priceMax: string;
-  filial: string;
-  stockStatus: string;
-}
+// Filtros lembrados por tela enquanto a aba estiver aberta (voltar para Produtos/Estoque mantém a seleção).
+const filterMemory = new Map<string, ProductFilterValues>();
 
-const emptyFilters: ProductFilterValues = {
-  search: "",
-  tipoItem: "all",
-  classificacaoProduto: "all",
-  categoriaIdade: "all",
-  genero: "all",
-  estilo: "all",
-  corArmacao: "all",
-  materialAro: "all",
-  materialHaste: "all",
-  tipoLente: "all",
-  polarizado: "all",
-  tipoHaste: "all",
-  ponteArmacao: "all",
-  tamanhoArmacao: "all",
-  filterLensSize: "all",
-  filterAlturaLente: "all",
-  filterBridgeSize: "all",
-  filterTempleSize: "all",
-  catAcessorio: "all",
-  tipoAcessorio: "all",
-  corAcessorio: "all",
-  priceMin: "",
-  priceMax: "",
-  filial: "all",
-  stockStatus: "all",
-};
-
-export function useProductFilters() {
-  const [filters, setFilters] = useState<ProductFilterValues>({ ...emptyFilters });
+export function useProductFilters(memoryKey = "default") {
+  const [filters, setFiltersState] = useState<ProductFilterValues>(
+    () => filterMemory.get(memoryKey) ?? createEmptyFilters(),
+  );
+  const setFilters: Dispatch<SetStateAction<ProductFilterValues>> = useCallback((action) => {
+    setFiltersState(prev => {
+      const next = typeof action === "function" ? action(prev) : action;
+      filterMemory.set(memoryKey, next);
+      return next;
+    });
+  }, [memoryKey]);
   return { filters, setFilters };
 }
 
+interface OptionItem { value: string; label: string }
+type Option = string | OptionItem;
+
+const toItem = (o: Option): OptionItem => (typeof o === "string" ? { value: o, label: o } : o);
+
+/** Opções fixas do cadastro + valores que existem nos produtos (cadastros antigos ou personalizados). */
+function mergeOptions(base: readonly string[], present: Iterable<string>): string[] {
+  return Array.from(new Set([...base, ...present].filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
+}
 
 /**
- * Stock level: out_of_stock if 0, normal otherwise.
+ * Seleção múltipla: lista de opções marcáveis, aberta dentro da própria janela de filtros.
+ * Marcar uma opção a inclui no resultado (produto com qualquer uma das marcadas).
  */
-export function getStockLevel(stock: number, categoryMin: number): StockLevel {
-  if (stock === 0) return "out_of_stock";
-  return "normal";
-}
-
-/** Legacy compat */
-export function getStockStatus(stock: number, minStock?: number): "in_stock" | "low_stock" | "out_of_stock" {
-  const level = getStockLevel(stock, minStock ?? 0);
-  if (level === "out_of_stock") return "out_of_stock";
-  if (level === "critical" || level === "low") return "low_stock";
-  return "in_stock";
-}
-
-export function applyProductFilters<T extends {
-  model: string; code: string; color: string; stock: number; min_stock: number;
-  retail_price: number; filial_id: string; status: string; is_acessorio: boolean;
-  categoria_idade: string; genero: string; estilo: string; cor_armacao: string;
-  material: string; material_aro: string; material_haste: string; tipo_lente: string;
-}>(
-  products: T[],
-  filters: ProductFilterValues,
-): T[] {
-  return products.filter(p => {
-    if (p.status === "inativo") return false;
-
-    if (filters.search) {
-      if (!matchesProductSearch(p as any, filters.search)) return false;
-    }
-
-    if (filters.tipoItem === "normal" && p.is_acessorio) return false;
-    if (filters.tipoItem === "acessorio" && !p.is_acessorio) return false;
-    if (filters.classificacaoProduto !== "all") {
-      const pCat = (p as any).category || "";
-      if (pCat !== filters.classificacaoProduto) return false;
-    }
-
-    if (filters.categoriaIdade !== "all" && p.categoria_idade !== filters.categoriaIdade) return false;
-    if (filters.genero !== "all") {
-      if (filters.genero === "Unissex") {
-        if (p.genero !== "Unissex") return false;
-      } else {
-        if (p.genero !== filters.genero && p.genero !== "Unissex") return false;
-      }
-    }
-    if (filters.estilo !== "all" && p.estilo !== filters.estilo) return false;
-    if (filters.corArmacao !== "all") {
-      // Suporta produtos com múltiplas cores (lista separada por vírgula)
-      const cores = (p.cor_armacao || "").split(",").map(c => c.trim());
-      if (!cores.includes(filters.corArmacao)) return false;
-    }
-    
-    if (filters.materialAro !== "all" && p.material_aro !== filters.materialAro) return false;
-    if (filters.materialHaste !== "all" && p.material_haste !== filters.materialHaste) return false;
-    if (filters.tipoLente !== "all" && p.tipo_lente !== filters.tipoLente) return false;
-    if (filters.polarizado !== "all" && (p as any).polarizado !== filters.polarizado) return false;
-    if (filters.tipoHaste !== "all" && (p as any).tipo_haste !== filters.tipoHaste) return false;
-    if (filters.ponteArmacao !== "all" && (p as any).ponte_armacao !== filters.ponteArmacao) return false;
-    if (filters.tamanhoArmacao !== "all" && !p.is_acessorio) {
-      const size = `${(p as any).lens_size || 0}-${(p as any).bridge_size || 0}-${(p as any).temple_size || 0}`;
-      if (size !== filters.tamanhoArmacao) return false;
-    }
-    if (filters.filterLensSize !== "all" && !p.is_acessorio) {
-      if (String((p as any).lens_size || 0) !== filters.filterLensSize) return false;
-    }
-    if (filters.filterAlturaLente !== "all" && !p.is_acessorio) {
-      if (String((p as any).altura_lente || 0) !== filters.filterAlturaLente) return false;
-    }
-    if (filters.filterBridgeSize !== "all" && !p.is_acessorio) {
-      if (String((p as any).bridge_size || 0) !== filters.filterBridgeSize) return false;
-    }
-    if (filters.filterTempleSize !== "all" && !p.is_acessorio) {
-      if (String((p as any).temple_size || 0) !== filters.filterTempleSize) return false;
-    }
-
-    // Accessory hierarchical filters
-    if (filters.catAcessorio !== "all") {
-      const pCat = (p as any).categoria_acessorio || "";
-      if (pCat !== filters.catAcessorio) return false;
-    }
-    if (filters.tipoAcessorio !== "all") {
-      const pTipo = (p as any).tipo_acessorio || "";
-      if (pTipo !== filters.tipoAcessorio) return false;
-    }
-    if (filters.corAcessorio !== "all") {
-      const pCor = (p as any).cor_acessorio || "";
-      const coresAc = pCor.split(",").map((c: string) => c.trim()).filter(Boolean);
-      if (filters.corAcessorio === "Nenhuma") {
-        if (coresAc.length > 0 && !coresAc.includes("Nenhuma")) return false;
-      } else {
-        if (!coresAc.includes(filters.corAcessorio)) return false;
-      }
-    }
-
-    if (filters.filial !== "all" && p.filial_id !== filters.filial) return false;
-
-    if (filters.stockStatus !== "all") {
-      const level = getStockLevel(p.stock, p.min_stock || 0);
-      if (filters.stockStatus === "normal" && level !== "normal") return false;
-      if (filters.stockStatus === "low" && level !== "low") return false;
-      if (filters.stockStatus === "critical" && level !== "critical") return false;
-      if (filters.stockStatus === "out_of_stock" && level !== "out_of_stock") return false;
-    }
-
-    if (filters.priceMin && Number(p.retail_price) < Number(filters.priceMin)) return false;
-    if (filters.priceMax && Number(p.retail_price) > Number(filters.priceMax)) return false;
-    return true;
-  });
-}
-
-function FilterSelect({ label, value, onValueChange, options, allLabel = "Todos" }: {
-  label: string; value: string; onValueChange: (v: string) => void;
-  options: readonly string[] | string[]; allLabel?: string;
+function MultiSelectFilter({ label, values, onChange, options, allLabel = "Todos", disabled }: {
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: readonly Option[];
+  allLabel?: string;
+  disabled?: boolean;
 }) {
-  const sorted = [...options].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const items = useMemo(() => options.map(toItem), [options]);
+  const labelOf = (v: string) => items.find(i => i.value === v)?.label ?? v;
+  const shown = useMemo(() => {
+    const q = normalizeSearchText(query);
+    return items.filter(i => !q || normalizeSearchText(i.label).includes(q));
+  }, [items, query]);
+
+  const toggle = (value: string) =>
+    onChange(values.includes(value) ? values.filter(v => v !== value) : [...values, value]);
+
+  const summary = values.length === 0
+    ? allLabel
+    : values.length <= 2
+      ? values.map(labelOf).join(", ")
+      : `${values.length} selecionados`;
+
   return (
     <div className="space-y-1">
       <Label className="text-caption">{label}</Label>
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className="h-8 text-sm">
-          <SelectValue placeholder={allLabel} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{allLabel}</SelectItem>
-          {sorted.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-        </SelectContent>
-      </Select>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled}
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+        className={cn("h-8 w-full justify-between px-3 text-sm font-normal", values.length === 0 && "text-muted-foreground")}
+      >
+        <span className="truncate">{summary}</span>
+        <span className="flex items-center gap-1 shrink-0">
+          {values.length > 0 && (
+            <Badge variant="default" className="h-4 min-w-4 px-1 text-[10px] rounded-full">{values.length}</Badge>
+          )}
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+        </span>
+      </Button>
+      {open && (
+        <div className="rounded-md border bg-background p-1">
+          {items.length > 8 && (
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar opção..."
+              className="h-7 mb-1 text-sm"
+            />
+          )}
+          <div className="flex items-center justify-between px-1 pb-1">
+            <span className="text-[11px] text-muted-foreground">
+              {values.length === 0 ? "Marque uma ou mais opções" : `${values.length} marcada${values.length > 1 ? "s" : ""}`}
+            </span>
+            {values.length > 0 && (
+              <button type="button" className="text-[11px] text-primary hover:underline" onClick={() => onChange([])}>
+                Limpar seleção
+              </button>
+            )}
+          </div>
+          <div className="max-h-44 overflow-y-auto">
+            {shown.length === 0 && <p className="px-2 py-2 text-caption text-muted-foreground">Nenhuma opção encontrada</p>}
+            {shown.map(item => {
+              const checked = values.includes(item.value);
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  onClick={() => toggle(item.value)}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                >
+                  <span className={cn(
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
+                    checked ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                  )}>
+                    {checked && <Check className="h-3 w-3" />}
+                  </span>
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+const STOCK_STATUS_LABEL: Record<string, string> = {
+  normal: "Normal",
+  low: "Baixo",
+  critical: "Crítico",
+  out_of_stock: "Esgotado",
+};
+
+const FIELD_LABEL: Partial<Record<ProductFilterListKey, string>> = {
+  classificacaoProduto: "Classificação",
+  categoriaIdade: "Idade",
+  genero: "Gênero",
+  estilo: "Estilo",
+  corArmacao: "Cor",
+  corHaste: "Cor da haste",
+  materialAro: "Material aro",
+  materialHaste: "Material haste",
+  tipoLente: "Lente",
+  polarizado: "Polarizado",
+  tipoHaste: "Haste",
+  ponteArmacao: "Ponte",
+  tamanhoArmacao: "Tamanho",
+  filterLensSize: "Largura lente",
+  filterAlturaLente: "Altura lente",
+  filterBridgeSize: "Largura ponte",
+  filterTempleSize: "Comp. haste",
+  catAcessorio: "Categoria",
+  tipoAcessorio: "Tipo",
+  corAcessorio: "Cor acessório",
+  filial: "Filial",
+  stockStatus: "Estoque",
+};
+
+const CHIP_ORDER: ProductFilterListKey[] = [
+  ...FRAME_FILTER_KEYS, ...ACCESSORY_FILTER_KEYS, "stockStatus", "filial",
+];
+
+interface ProductFiltersProps {
+  filters: ProductFilterValues;
+  onChange: (filters: ProductFilterValues) => void;
+  /** Produtos da tela: alimentam as opções disponíveis (medidas, cores, tipos) e a contagem de resultados. */
+  products?: FilterableProduct[];
 }
 
 export function ProductFilters({ filters, onChange, products = [] }: ProductFiltersProps) {
@@ -226,65 +207,81 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
   const [open, setOpen] = useState(false);
   const [priceError, setPriceError] = useState("");
 
-  const countActive = (f: ProductFilterValues) => {
-    const keys: (keyof ProductFilterValues)[] = [
-      "tipoItem", "classificacaoProduto", "categoriaIdade", "genero", "estilo", "corArmacao",
-      "materialAro", "materialHaste", "tipoLente", "polarizado", "tipoHaste", "ponteArmacao",
-      "tamanhoArmacao", "filterLensSize", "filterAlturaLente", "filterBridgeSize", "filterTempleSize",
-      "catAcessorio", "tipoAcessorio", "corAcessorio",
-      "filial", "stockStatus",
-    ];
-    let count = keys.filter(k => f[k] !== "all").length;
-    if (f.priceMin) count++;
-    if (f.priceMax) count++;
-    return count;
-  };
-
-  const activeCount = countActive(filters);
+  const activeCount = countActiveFilters(filters, { ignoreFilial: filialLocked });
   const showAccessoryFilters = draft.tipoItem === "acessorio" || draft.tipoItem === "all";
   const showFrameFilters = draft.tipoItem === "normal" || draft.tipoItem === "all";
 
-  // Cascading types for accessory filter
-  const tiposAcFiltro = draft.catAcessorio !== "all" ? getTiposByCategoria(draft.catAcessorio) : [];
+  // Uma filial escolhida no filtro deixa de valer quando a filial global é fixada (a lista já vem filtrada).
+  useEffect(() => {
+    if (filialLocked && filters.filial.length > 0) onChange({ ...filters, filial: [] });
+  }, [filialLocked, filters, onChange]);
 
-  // Available frame sizes from products (only non-accessories with valid sizes)
-  const availableSizes = useMemo(() => {
-    const sizeSet = new Set<string>();
-    products.filter(p => !p.is_acessorio && p.status !== "inativo").forEach(p => {
-      if (p.lens_size > 0 || p.bridge_size > 0 || p.temple_size > 0) {
-        sizeSet.add(`${p.lens_size}-${p.bridge_size}-${p.temple_size}`);
-      }
-    });
-    return Array.from(sizeSet).sort((a, b) => {
-      const [la] = a.split("-").map(Number);
-      const [lb] = b.split("-").map(Number);
-      return la - lb;
-    });
-  }, [products]);
+  const activeProducts = useMemo(() => products.filter(p => p.status !== "inativo"), [products]);
 
-  // Individual dimension values from products
-  const availableDimensions = useMemo(() => {
-    const active = products.filter(p => !p.is_acessorio && p.status !== "inativo");
+  // Opções disponíveis: lista fixa do cadastro + o que de fato existe nos produtos.
+  const available = useMemo(() => {
+    const frames = activeProducts.filter(p => !p.is_acessorio);
+    const accessories = activeProducts.filter(p => p.is_acessorio);
+    const sizes = new Set<string>();
     const lens = new Set<number>();
     const altura = new Set<number>();
     const bridge = new Set<number>();
     const temple = new Set<number>();
-    active.forEach(p => {
-      if ((p as any).lens_size > 0) lens.add((p as any).lens_size);
-      if ((p as any).altura_lente > 0) altura.add((p as any).altura_lente);
-      if ((p as any).bridge_size > 0) bridge.add((p as any).bridge_size);
-      if ((p as any).temple_size > 0) temple.add((p as any).temple_size);
+    frames.forEach(p => {
+      const l = p.lens_size || 0, b = p.bridge_size || 0, t = p.temple_size || 0;
+      if (l > 0 || b > 0 || t > 0) sizes.add(`${l}-${b}-${t}`);
+      if (l > 0) lens.add(l);
+      if ((p.altura_lente || 0) > 0) altura.add(p.altura_lente as number);
+      if (b > 0) bridge.add(b);
+      if (t > 0) temple.add(t);
     });
-    const toSorted = (s: Set<number>) => Array.from(s).sort((a, b) => a - b).map(String);
+    const nums = (s: Set<number>) => Array.from(s).sort((a, b) => a - b).map(String);
+    const flat = (list: FilterableProduct[], get: (p: FilterableProduct) => string[]) =>
+      list.flatMap(get);
     return {
-      lens: toSorted(lens),
-      altura: toSorted(altura),
-      bridge: toSorted(bridge),
-      temple: toSorted(temple),
+      sizes: Array.from(sizes).sort((a, b) => parseInt(a, 10) - parseInt(b, 10) || a.localeCompare(b)),
+      lens: nums(lens), altura: nums(altura), bridge: nums(bridge), temple: nums(temple),
+      estilos: mergeOptions(ESTILOS, frames.map(p => p.estilo || "")),
+      coresArmacao: mergeOptions(TODAS_CORES, flat(frames, p => splitValues(p.cor_armacao))),
+      coresHaste: mergeOptions(TODAS_CORES, flat(frames, p => splitValues(p.cor_haste))),
+      materiaisAro: mergeOptions(MATERIAIS_ARO, frames.map(p => p.material_aro || "")),
+      materiaisHaste: mergeOptions(MATERIAIS_HASTE, frames.map(p => p.material_haste || "")),
+      tiposLente: mergeOptions(TIPOS_LENTE, flat(frames, p => lensTypesOf(p.tipo_lente))),
+      pontes: mergeOptions(PONTES_ARMACAO, frames.map(p => p.ponte_armacao || "")),
+      categoriasAcessorio: mergeOptions(ACESSORIOS_CATEGORIAS.map(c => c.nome), accessories.map(p => p.categoria_acessorio || "")),
+      coresAcessorio: mergeOptions(
+        ["Nenhuma", ...TODAS_CORES],
+        flat(accessories, p => splitValues(p.cor_acessorio)),
+      ),
+      accessories,
+      hasMinStock: activeProducts.some(p => (Number(p.min_stock) || 0) > 0),
     };
-  }, [products]);
+  }, [activeProducts]);
 
-  const validatePrice = (d: ProductFilterValues): boolean => {
+  // Tipos de acessório das categorias marcadas (ou todos os existentes quando nenhuma foi marcada).
+  const tiposAcessorioFor = useCallback((cats: string[]): string[] => {
+    const fromConstants = cats.flatMap(c => getTiposByCategoria(c).map(t => t.nome));
+    const fromProducts = available.accessories
+      .filter(p => cats.length === 0 || cats.includes(p.categoria_acessorio || ""))
+      .map(p => p.tipo_acessorio || "");
+    return mergeOptions(fromConstants, fromProducts);
+  }, [available.accessories]);
+
+  const tiposAcessorio = useMemo(() => tiposAcessorioFor(draft.catAcessorio), [tiposAcessorioFor, draft.catAcessorio]);
+
+  const stockStatusOptions: OptionItem[] = useMemo(() => {
+    const keys = ["normal", "out_of_stock"];
+    // Baixo/Crítico dependem do estoque mínimo do produto: só aparecem quando algum produto tem mínimo.
+    if (available.hasMinStock || draft.stockStatus.some(s => s === "low" || s === "critical")) keys.splice(1, 0, "low", "critical");
+    return keys.map(k => ({ value: k, label: STOCK_STATUS_LABEL[k] }));
+  }, [available.hasMinStock, draft.stockStatus]);
+
+  const filialOptions: OptionItem[] = useMemo(
+    () => filiais.map(f => ({ value: f.id, label: f.name })),
+    [filiais],
+  );
+
+  const validate = (d: ProductFilterValues): boolean => {
     if (d.priceMin && d.priceMax && Number(d.priceMin) > Number(d.priceMax)) {
       setPriceError("Valor mínimo não pode ser maior que o máximo");
       return false;
@@ -293,11 +290,53 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
     return true;
   };
 
+  const effectiveDraft = useMemo<ProductFilterValues>(
+    () => ({ ...draft, search: filters.search, filial: filialLocked ? [] : draft.filial }),
+    [draft, filters.search, filialLocked],
+  );
+
+  // Quantos produtos o filtro em edição retornaria (mostrado no botão Aplicar).
+  const previewCount = useMemo(
+    () => (open && products.length > 0 ? applyProductFilters(products, effectiveDraft).length : null),
+    [open, products, effectiveDraft],
+  );
+
+  const draftActiveCount = countActiveFilters(effectiveDraft, { ignoreFilial: filialLocked });
+
   const handleApply = () => {
-    if (!validatePrice(draft)) return;
-    onChange({ ...draft, search: filters.search });
+    if (!validate(draft)) return;
+    onChange(effectiveDraft);
     setOpen(false);
   };
+
+  const handleClear = () => {
+    const cleared = { ...createEmptyFilters(), search: filters.search };
+    setDraft(cleared);
+    setPriceError("");
+    onChange(cleared);
+    setOpen(false);
+  };
+
+  const removeChip = (key: ProductFilterListKey, value: string) =>
+    onChange({ ...filters, [key]: filters[key].filter(v => v !== value) });
+
+  const setList = (key: ProductFilterListKey) => (values: string[]) =>
+    setDraft(d => ({ ...d, [key]: values }));
+
+  const setTipoItem = (tipoItem: string) =>
+    setDraft(d => {
+      const next = { ...d, tipoItem };
+      // Esconder um grupo de campos também limpa o que havia sido marcado nele.
+      const reset = tipoItem === "acessorio" ? FRAME_FILTER_KEYS : tipoItem === "normal" ? ACCESSORY_FILTER_KEYS : [];
+      reset.forEach(k => { next[k] = []; });
+      return next;
+    });
+
+  const setCategoriasAcessorio = (cats: string[]) =>
+    setDraft(d => {
+      const validTipos = new Set(tiposAcessorioFor(cats));
+      return { ...d, catAcessorio: cats, tipoAcessorio: d.tipoAcessorio.filter(t => validTipos.has(t)) };
+    });
 
   // Pesquisa rápida (opcional): identifica o produto pelo código digitado/colado/escaneado.
   // O código digitado é sempre preservado no campo, mesmo sem resultado.
@@ -327,13 +366,33 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
     return () => clearTimeout(timer);
   }, [filters.search, quickSearch, products]);
 
-  const handleClear = () => {
-    const cleared = { ...emptyFilters, search: filters.search };
-    setDraft(cleared);
-    setPriceError("");
-    onChange(cleared);
-    setOpen(false);
-  };
+  const chips = useMemo(() => {
+    const labelFor = (key: ProductFilterListKey, value: string) => {
+      if (key === "filial") return filiais.find(f => f.id === value)?.name ?? value;
+      if (key === "stockStatus") return STOCK_STATUS_LABEL[value] ?? value;
+      return value;
+    };
+    return CHIP_ORDER
+      .filter(key => !(key === "filial" && filialLocked))
+      .flatMap(key => filters[key].map(value => ({
+        id: `${key}:${value}`,
+        text: `${FIELD_LABEL[key]}: ${labelFor(key, value)}`,
+        remove: () => removeChip(key, value),
+      })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, filiais, filialLocked]);
+
+  const extraChips: { id: string; text: string; remove: () => void }[] = [];
+  if (filters.tipoItem !== "all") {
+    extraChips.push({
+      id: "tipoItem",
+      text: filters.tipoItem === "acessorio" ? "Somente acessórios" : "Somente armações",
+      remove: () => onChange({ ...filters, tipoItem: "all" }),
+    });
+  }
+  if (filters.priceMin) extraChips.push({ id: "priceMin", text: `Preço ≥ R$ ${filters.priceMin}`, remove: () => onChange({ ...filters, priceMin: "" }) });
+  if (filters.priceMax) extraChips.push({ id: "priceMax", text: `Preço ≤ R$ ${filters.priceMax}`, remove: () => onChange({ ...filters, priceMax: "" }) });
+  const allChips = [...extraChips, ...chips];
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -341,7 +400,7 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           ref={searchInputRef}
-          placeholder={quickSearch ? "Leia ou digite o código do produto..." : "Buscar por modelo, código ou cor..."}
+          placeholder={quickSearch ? "Leia ou digite o código do produto..." : "Buscar por modelo, código, cor ou estilo..."}
           value={filters.search}
           onChange={(e) => onChange({ ...filters, search: e.target.value })}
           className="pl-9 h-9"
@@ -365,24 +424,23 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
             )}
           </Button>
         </DialogTrigger>
-        <DialogContent className="w-96 max-w-[95vw] p-0">
-          <DialogHeader className="p-4 pb-2">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-sm font-semibold">Filtros</DialogTitle>
-              {activeCount > 0 && (
-                <Button variant="ghost" size="sm" className="h-7 text-caption text-muted-foreground gap-1" onClick={handleClear}>
-                  <X className="h-3 w-3" />
-                  Limpar
-                </Button>
+        <DialogContent className="w-[30rem] max-w-[95vw] p-0">
+          <DialogHeader className="p-4 pb-2 pr-12">
+            <DialogTitle className="text-sm font-semibold">
+              Filtros
+              {draftActiveCount > 0 && (
+                <span className="ml-2 text-caption font-normal text-muted-foreground">
+                  {draftActiveCount} selecionado{draftActiveCount > 1 ? "s" : ""}
+                </span>
               )}
-            </div>
+            </DialogTitle>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[460px]">
+          <div className="max-h-[60vh] overflow-y-auto">
             <div className="p-4 pt-2 space-y-3">
               <div className="space-y-1">
                 <Label className="text-caption">Tipo de Item</Label>
-                <Select value={draft.tipoItem} onValueChange={(v) => setDraft({ ...draft, tipoItem: v, classificacaoProduto: "all" })}>
+                <Select value={draft.tipoItem} onValueChange={setTipoItem}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
@@ -392,83 +450,70 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
                 </Select>
               </div>
 
-              {(draft.tipoItem === "normal" || draft.tipoItem === "all") && (
-                <div className="space-y-1">
-                  <Label className="text-caption">Classificação</Label>
-                  <Select value={draft.classificacaoProduto} onValueChange={(v) => setDraft({ ...draft, classificacaoProduto: v })}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="Receituário">Receituário</SelectItem>
-                      <SelectItem value="Solar">Solar</SelectItem>
-                      <SelectItem value="Clip-on">Clip-on</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
               {showFrameFilters && (
                 <>
+                  <MultiSelectFilter label="Classificação" allLabel="Todas" values={draft.classificacaoProduto}
+                    onChange={setList("classificacaoProduto")} options={["Receituário", "Solar", "Clip-on"]} />
+
                   <Separator />
                   <p className="text-caption text-muted-foreground font-medium">Armação</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <FilterSelect label="Categoria Idade" value={draft.categoriaIdade}
-                      onValueChange={(v) => setDraft({ ...draft, categoriaIdade: v })} options={CATEGORIAS_IDADE} allLabel="Todas" />
-                    <FilterSelect label="Gênero" value={draft.genero}
-                      onValueChange={(v) => setDraft({ ...draft, genero: v })} options={GENEROS} />
+                  <div className="grid grid-cols-2 gap-3 items-start">
+                    <MultiSelectFilter label="Categoria Idade" allLabel="Todas" values={draft.categoriaIdade}
+                      onChange={setList("categoriaIdade")} options={CATEGORIAS_IDADE} />
+                    <MultiSelectFilter label="Gênero" values={draft.genero}
+                      onChange={setList("genero")} options={GENEROS} />
                   </div>
-                  <FilterSelect label="Estilo" value={draft.estilo}
-                    onValueChange={(v) => setDraft({ ...draft, estilo: v })} options={ESTILOS} />
-                  <FilterSelect label="Cor da Armação" value={draft.corArmacao}
-                    onValueChange={(v) => setDraft({ ...draft, corArmacao: v })} options={TODAS_CORES} allLabel="Todas" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <FilterSelect label="Material Aro" value={draft.materialAro}
-                      onValueChange={(v) => setDraft({ ...draft, materialAro: v })} options={MATERIAIS_ARO} />
-                    <FilterSelect label="Material Haste" value={draft.materialHaste}
-                      onValueChange={(v) => setDraft({ ...draft, materialHaste: v })} options={MATERIAIS_HASTE} />
+                  <MultiSelectFilter label="Estilo" values={draft.estilo}
+                    onChange={setList("estilo")} options={available.estilos} />
+                  <MultiSelectFilter label="Cor da Armação" allLabel="Todas" values={draft.corArmacao}
+                    onChange={setList("corArmacao")} options={available.coresArmacao} />
+                  <MultiSelectFilter label="Cor da Haste" allLabel="Todas" values={draft.corHaste}
+                    onChange={setList("corHaste")} options={available.coresHaste} />
+                  <div className="grid grid-cols-2 gap-3 items-start">
+                    <MultiSelectFilter label="Material Aro" values={draft.materialAro}
+                      onChange={setList("materialAro")} options={available.materiaisAro} />
+                    <MultiSelectFilter label="Material Haste" values={draft.materialHaste}
+                      onChange={setList("materialHaste")} options={available.materiaisHaste} />
                   </div>
-                  <FilterSelect label="Tipo de Lente" value={draft.tipoLente}
-                    onValueChange={(v) => setDraft({ ...draft, tipoLente: v })} options={TIPOS_LENTE} />
-                  <div className="grid grid-cols-2 gap-3">
-                    <FilterSelect label="Polarizado" value={draft.polarizado}
-                      onValueChange={(v) => setDraft({ ...draft, polarizado: v })} options={["Não", "Sim"]} />
-                    <FilterSelect label="Ponte" value={draft.ponteArmacao}
-                      onValueChange={(v) => setDraft({ ...draft, ponteArmacao: v })} options={[...PONTES_ARMACAO].sort((a, b) => a.localeCompare(b, 'pt-BR'))} allLabel="Todas" />
+                  <MultiSelectFilter label="Tipo de Lente" values={draft.tipoLente}
+                    onChange={setList("tipoLente")} options={available.tiposLente} />
+                  <div className="grid grid-cols-2 gap-3 items-start">
+                    <MultiSelectFilter label="Polarizado" values={draft.polarizado}
+                      onChange={setList("polarizado")} options={["Sim", "Não"]} />
+                    <MultiSelectFilter label="Ponte" allLabel="Todas" values={draft.ponteArmacao}
+                      onChange={setList("ponteArmacao")} options={available.pontes} />
                   </div>
-                  <FilterSelect label="Tipo de Haste" value={draft.tipoHaste}
-                    onValueChange={(v) => setDraft({ ...draft, tipoHaste: v })} options={["Comum", ...TIPOS_HASTE]} />
-                  <Separator />
-                  <p className="text-caption text-muted-foreground font-medium">Medidas (mm)</p>
-                  {availableSizes.length > 0 && (
-                    <div className="space-y-1">
-                      <Label className="text-caption">Tamanho da Armação (completo)</Label>
-                      <Select value={draft.tamanhoArmacao} onValueChange={(v) => setDraft({ ...draft, tamanhoArmacao: v })}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          {availableSizes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <MultiSelectFilter label="Tipo de Haste" values={draft.tipoHaste}
+                    onChange={setList("tipoHaste")} options={["Comum", ...TIPOS_HASTE]} />
+
+                  {(available.sizes.length > 0 || available.lens.length > 0) && (
+                    <>
+                      <Separator />
+                      <p className="text-caption text-muted-foreground font-medium">Medidas (mm)</p>
+                      {available.sizes.length > 0 && (
+                        <MultiSelectFilter label="Tamanho da Armação (completo)" values={draft.tamanhoArmacao}
+                          onChange={setList("tamanhoArmacao")} options={available.sizes} />
+                      )}
+                      <div className="grid grid-cols-2 gap-3 items-start">
+                        {available.lens.length > 0 && (
+                          <MultiSelectFilter label="Largura da Lente" values={draft.filterLensSize}
+                            onChange={setList("filterLensSize")} options={available.lens} />
+                        )}
+                        {available.altura.length > 0 && (
+                          <MultiSelectFilter label="Altura da Lente" values={draft.filterAlturaLente}
+                            onChange={setList("filterAlturaLente")} options={available.altura} />
+                        )}
+                        {available.bridge.length > 0 && (
+                          <MultiSelectFilter label="Largura da Ponte" values={draft.filterBridgeSize}
+                            onChange={setList("filterBridgeSize")} options={available.bridge} />
+                        )}
+                        {available.temple.length > 0 && (
+                          <MultiSelectFilter label="Comprimento Haste" values={draft.filterTempleSize}
+                            onChange={setList("filterTempleSize")} options={available.temple} />
+                        )}
+                      </div>
+                    </>
                   )}
-                  <div className="grid grid-cols-2 gap-3">
-                    {availableDimensions.lens.length > 0 && (
-                      <FilterSelect label="Largura da Lente" value={draft.filterLensSize}
-                        onValueChange={(v) => setDraft({ ...draft, filterLensSize: v })} options={availableDimensions.lens} />
-                    )}
-                    {availableDimensions.altura.length > 0 && (
-                      <FilterSelect label="Altura da Lente" value={draft.filterAlturaLente}
-                        onValueChange={(v) => setDraft({ ...draft, filterAlturaLente: v })} options={availableDimensions.altura} />
-                    )}
-                    {availableDimensions.bridge.length > 0 && (
-                      <FilterSelect label="Largura da Ponte" value={draft.filterBridgeSize}
-                        onValueChange={(v) => setDraft({ ...draft, filterBridgeSize: v })} options={availableDimensions.bridge} />
-                    )}
-                    {availableDimensions.temple.length > 0 && (
-                      <FilterSelect label="Comprimento Haste" value={draft.filterTempleSize}
-                        onValueChange={(v) => setDraft({ ...draft, filterTempleSize: v })} options={availableDimensions.temple} />
-                    )}
-                  </div>
                 </>
               )}
 
@@ -476,71 +521,34 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
                 <>
                   <Separator />
                   <p className="text-caption text-muted-foreground font-medium">Acessório</p>
-                  <FilterSelect
-                    label="Categoria"
-                    value={draft.catAcessorio}
-                    onValueChange={(v) => setDraft({ ...draft, catAcessorio: v, tipoAcessorio: "all", corAcessorio: "all" })}
-                    options={[...ACESSORIOS_CATEGORIAS].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map(c => c.nome)}
-                    allLabel="Todas"
-                  />
-                  {tiposAcFiltro.length > 0 && (
-                    <FilterSelect
-                      label="Tipo"
-                      value={draft.tipoAcessorio}
-                      onValueChange={(v) => setDraft({ ...draft, tipoAcessorio: v })}
-                      options={tiposAcFiltro.map(t => t.nome).sort((a, b) => a.localeCompare(b, 'pt-BR'))}
-                    />
+                  <MultiSelectFilter label="Categoria" allLabel="Todas" values={draft.catAcessorio}
+                    onChange={setCategoriasAcessorio} options={available.categoriasAcessorio} />
+                  {tiposAcessorio.length > 0 && (
+                    <MultiSelectFilter label="Tipo" values={draft.tipoAcessorio}
+                      onChange={setList("tipoAcessorio")} options={tiposAcessorio} />
                   )}
-                  <div className="space-y-1">
-                    <Label className="text-caption">Cor do Acessório</Label>
-                    <Select value={draft.corAcessorio} onValueChange={(v) => setDraft({ ...draft, corAcessorio: v })}>
-                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas</SelectItem>
-                        <SelectItem value="Nenhuma">Nenhuma</SelectItem>
-                        {TODAS_CORES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <MultiSelectFilter label="Cor do Acessório" allLabel="Todas" values={draft.corAcessorio}
+                    onChange={setList("corAcessorio")} options={available.coresAcessorio} />
                 </>
               )}
 
               <Separator />
               <p className="text-caption text-muted-foreground font-medium">Estoque</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-caption flex items-center gap-1">
-                    Filial
-                    {filialLocked && <Lock className="h-3 w-3 text-muted-foreground" />}
-                  </Label>
-                  {filialLocked ? (
-                    <div>
-                      <Input value={`Filial ${selectedFilial}`} disabled className="h-8 text-sm bg-muted" />
-                      <p className="text-[10px] text-muted-foreground mt-0.5">Use "Todas" para filtrar por filial</p>
-                    </div>
-                  ) : (
-                    <Select value={draft.filial} onValueChange={(v) => setDraft({ ...draft, filial: v })}>
-                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas</SelectItem>
-                        {filiais.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-caption">Status Estoque</Label>
-                  <Select value={draft.stockStatus} onValueChange={(v) => setDraft({ ...draft, stockStatus: v })}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="normal">Normal ✓</SelectItem>
-                      <SelectItem value="low">Baixo ⚠</SelectItem>
-                      <SelectItem value="critical">Crítico 🟠</SelectItem>
-                      <SelectItem value="out_of_stock">Esgotado 🔴</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid grid-cols-2 gap-3 items-start">
+                {filialLocked ? (
+                  <div className="space-y-1">
+                    <Label className="text-caption flex items-center gap-1">
+                      Filial <Lock className="h-3 w-3 text-muted-foreground" />
+                    </Label>
+                    <Input value={`Filial ${selectedFilial}`} disabled className="h-8 text-sm bg-muted" />
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Use "Todas" para filtrar por filial</p>
+                  </div>
+                ) : (
+                  <MultiSelectFilter label="Filial" allLabel="Todas" values={draft.filial}
+                    onChange={setList("filial")} options={filialOptions} />
+                )}
+                <MultiSelectFilter label="Status Estoque" values={draft.stockStatus}
+                  onChange={setList("stockStatus")} options={stockStatusOptions} />
               </div>
 
               <Separator />
@@ -548,31 +556,51 @@ export function ProductFilters({ filters, onChange, products = [] }: ProductFilt
                 <Label className="text-caption">Faixa de Preço (R$)</Label>
                 <div className="flex gap-2">
                   <CurrencyInput placeholder="Mín" value={draft.priceMin ? Number(draft.priceMin) : 0}
-                    onValueChange={(v) => { setDraft({ ...draft, priceMin: v > 0 ? String(v) : "" }); setPriceError(""); }} className="h-8 text-sm" />
+                    onValueChange={(v) => { setDraft(d => ({ ...d, priceMin: v > 0 ? String(v) : "" })); setPriceError(""); }} className="h-8 text-sm" />
                   <CurrencyInput placeholder="Máx" value={draft.priceMax ? Number(draft.priceMax) : 0}
-                    onValueChange={(v) => { setDraft({ ...draft, priceMax: v > 0 ? String(v) : "" }); setPriceError(""); }} className="h-8 text-sm" />
+                    onValueChange={(v) => { setDraft(d => ({ ...d, priceMax: v > 0 ? String(v) : "" })); setPriceError(""); }} className="h-8 text-sm" />
                 </div>
                 {priceError && <p className="text-[11px] text-destructive">{priceError}</p>}
               </div>
             </div>
-          </ScrollArea>
+          </div>
 
           <div className="flex gap-2 p-4 pt-2 border-t">
-            <Button variant="outline" size="sm" className="flex-1 h-8" onClick={handleClear}>Limpar Filtros</Button>
-            <Button size="sm" className="flex-1 h-8" onClick={handleApply}>Aplicar Filtros</Button>
+            <Button
+              variant="outline" size="sm" className="flex-1 h-8 gap-1"
+              onClick={handleClear}
+              disabled={draftActiveCount === 0 && activeCount === 0}
+            >
+              <X className="h-3 w-3" />
+              Limpar Filtros
+            </Button>
+            <Button size="sm" className="flex-1 h-8" onClick={handleApply}>
+              Aplicar Filtros{previewCount !== null && ` (${previewCount})`}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {allChips.length > 0 && (
+        <div className="flex basis-full flex-wrap items-center gap-1.5" aria-label="Filtros ativos">
+          {allChips.map(chip => (
+            <Badge key={chip.id} variant="secondary" className="gap-1 pr-1 text-caption font-normal">
+              {chip.text}
+              <button
+                type="button"
+                onClick={chip.remove}
+                aria-label={`Remover filtro ${chip.text}`}
+                className="rounded-full p-0.5 hover:bg-background/60"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-caption text-muted-foreground" onClick={handleClear}>
+            Limpar tudo
+          </Button>
+        </div>
+      )}
     </div>
   );
-}
-
-interface ProductFiltersProps {
-  filters: ProductFilterValues;
-  onChange: (filters: ProductFilterValues) => void;
-  products?: {
-    lens_size: number; bridge_size: number; temple_size: number; altura_lente?: number;
-    is_acessorio: boolean; status: string;
-    barcode?: string; code?: string; referencia?: string; model?: string;
-  }[];
 }

@@ -25,6 +25,34 @@ export function matchesProductSearch(
   return false;
 }
 
+/** Minúsculas e sem acento: "Degradê" e "degrade" passam a ser o mesmo texto. */
+export function normalizeSearchText(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+const FILTER_SEARCH_FIELDS = [
+  "barcode", "code", "referencia", "model",
+  "color", "cor_armacao", "cor_haste", "cor_acessorio",
+  "estilo", "classificacao", "category",
+  "categoria_acessorio", "tipo_acessorio", "subcategoria_acessorio",
+] as const;
+
+/**
+ * Busca da tela de filtros: cada palavra digitada precisa aparecer em algum campo do produto
+ * (código, referência, modelo, cor, estilo, classificação, acessório), ignorando acentos.
+ */
+export function matchesProductFilterSearch(product: object, query: string): boolean {
+  const tokens = normalizeSearchText(query).split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const source = product as Record<string, unknown>;
+  const haystack = FILTER_SEARCH_FIELDS.map(f => normalizeSearchText(source[f])).join(" ");
+  return tokens.every(t => haystack.includes(t));
+}
+
 /**
  * Check for exact barcode match (for scanner auto-add in PDV).
  */
